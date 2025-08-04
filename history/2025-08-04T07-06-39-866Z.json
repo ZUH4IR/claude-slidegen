@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-08-04T07:06:39.866Z",
+  "config": {
+    "brand": "vibit",
+    "campaign": "older",
+    "blueprint": "standard-5-slide",
+    "rows": 2,
+    "hookAppeal": "drama",
+    "charCap": 95,
+    "topic": "yuh",
+    "productSlide": 5,
+    "addSelfAwareJoke": false
+  },
+  "hooks": [
+    "when ur bestie ghosts u after u helped them move apartments n bought them lunch #drama #toxic #betrayed #relatable",
+    "thought i was being a good friend until they used me for concert tickets then blocked me #toxic #fake #drama #karma"
+  ],
+  "csv": "Hook,Slide1,Slide2,Slide3,Slide4,Slide5\nwhen ur bestie ghosts u after u helped them move apartments n bought them lunch #drama #toxic #betrayed #relatable,spent 6 hours helping her move + bought pizza for everyone,she was all smiles n kept saying how grateful she was,next day: left me on read n removed me from her close friends,found out she only needed free labor n never valued our friendship,tired of fake friends? vibit connects u with genuine people who share ur values n interests\nthought i was being a good friend until they used me for concert tickets then blocked me #toxic #fake #drama #karma,bought us both taylor swift tickets bc they were \"broke\",they promised to pay me back after their next paycheck,saw them posting from the concert with someone else wearing $200 merch,never got my money back n they blocked me on everything,vibit's friend matching algorithm helps u find real connections who won't use u for concert tix"
+}

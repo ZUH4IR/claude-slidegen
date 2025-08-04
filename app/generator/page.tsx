@@ -26,6 +26,7 @@ interface Config {
   topic: string
   productSlide: number
   addSelfAwareJoke: boolean
+  addBottomText: boolean
   toneStrength?: number
   rageBaitIntensity?: number
 }
@@ -48,6 +49,7 @@ export default function GeneratorPage() {
     topic: '',
     productSlide: 5,
     addSelfAwareJoke: false,
+    addBottomText: false,
   })
   
   const [options, setOptions] = useState<Options>({
@@ -301,6 +303,15 @@ export default function GeneratorPage() {
                   <Label htmlFor="self-aware">Add Self-Aware Joke</Label>
                 </div>
 
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="bottom-text"
+                    checked={config.addBottomText}
+                    onCheckedChange={(checked) => setConfig({ ...config, addBottomText: checked })}
+                  />
+                  <Label htmlFor="bottom-text">Generate Hooks with Bottom Text</Label>
+                </div>
+
                 {config.brand && (
                   <div className="space-y-2">
                     <Label>Tone Strength: {config.toneStrength || 80}%</Label>
@@ -380,29 +391,36 @@ export default function GeneratorPage() {
 
       {/* Hooks Modal */}
       <Dialog open={showHooksModal} onOpenChange={setShowHooksModal}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-screen-lg h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Edit Hooks</DialogTitle>
+            <DialogTitle className="text-2xl">Review and Edit Generated Hooks</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <p className="text-muted-foreground mb-4">
+              Review the generated hooks below. You can edit them directly before proceeding to generate the full CSV.
+            </p>
             {editedHooks.map((hook, index) => (
-              <Input
-                key={index}
-                value={hook}
-                onChange={(e) => {
-                  const updated = [...editedHooks]
-                  updated[index] = e.target.value
-                  setEditedHooks(updated)
-                }}
-              />
+              <div key={index} className="space-y-2">
+                <Label className="text-sm font-medium">Hook {index + 1}</Label>
+                <Textarea
+                  value={hook}
+                  onChange={(e) => {
+                    const updated = [...editedHooks]
+                    updated[index] = e.target.value
+                    setEditedHooks(updated)
+                  }}
+                  className="min-h-[80px] resize-none"
+                  placeholder={`Enter hook ${index + 1}...`}
+                />
+              </div>
             ))}
           </div>
-          <DialogFooter>
+          <DialogFooter className="border-t pt-4">
             <Button variant="outline" onClick={() => setShowHooksModal(false)}>
               Cancel
             </Button>
             <Button onClick={approveHooks}>
-              Approve
+              Approve & Generate CSV
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,0 +1,27 @@
+story_6:
+  name: "Story Arc (6 slides)"
+  slides:
+    - hook
+    - problem
+    - agitate
+    - solution
+    - product
+    - cta
+
+tutorial_5:
+  name: "Tutorial (5 slides)"
+  slides:
+    - hook
+    - step1
+    - step2
+    - step3
+    - product
+
+drama_5:
+  name: "Drama Build (5 slides)"
+  slides:
+    - hook
+    - tension
+    - peak
+    - resolution
+    - product

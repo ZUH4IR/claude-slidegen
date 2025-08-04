@@ -4,31 +4,38 @@ import path from 'path'
 
 export async function GET() {
   try {
-    const promptsDir = path.join(process.cwd(), 'prompts')
+    const clientsDir = path.join(process.cwd(), 'prompts', 'clients')
     
-    // Get brands (subdirectories in prompts folder)
+    // Get brands (subdirectories in clients folder)
     const brands: string[] = []
     const campaigns: { [brand: string]: string[] } = {}
     
     try {
-      const items = await fs.readdir(promptsDir, { withFileTypes: true })
+      const items = await fs.readdir(clientsDir, { withFileTypes: true })
       
       for (const item of items) {
         if (item.isDirectory() && !item.name.startsWith('.')) {
           brands.push(item.name)
+          campaigns[item.name] = []
           
-          // Get campaigns for this brand
-          const brandDir = path.join(promptsDir, item.name)
-          const brandItems = await fs.readdir(brandDir, { withFileTypes: true })
+          // Get campaigns for this brand (files matching pattern)
+          const brandDir = path.join(clientsDir, item.name)
+          const brandFiles = await fs.readdir(brandDir)
           
-          campaigns[item.name] = brandItems
-            .filter(bi => bi.isDirectory() && !bi.name.startsWith('.'))
-            .map(bi => bi.name)
+          for (const file of brandFiles) {
+            // Extract campaign name from files like "older_v1.md"
+            if (file.endsWith('.md') && !file.startsWith('_brand')) {
+              const campaignName = file.replace(/_v\d+\.md$/, '')
+              if (!campaigns[item.name].includes(campaignName)) {
+                campaigns[item.name].push(campaignName)
+              }
+            }
+          }
         }
       }
     } catch (err) {
-      // Prompts directory might not exist yet
-      console.error('Error reading prompts directory:', err)
+      // Clients directory might not exist yet
+      console.error('Error reading clients directory:', err)
     }
     
     // Get blueprints from the blueprints folder

@@ -13,7 +13,7 @@ const navItems = [
     icon: Play,
   },
   {
-    title: 'Prompts',
+    title: 'Prompt Manager',
     href: '/prompts',
     icon: FileEdit,
   },

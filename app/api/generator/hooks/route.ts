@@ -18,6 +18,7 @@ interface Config {
   topic: string
   productSlide: number
   addSelfAwareJoke: boolean
+  addBottomText: boolean
   toneStrength?: number
   rageBaitIntensity?: number
 }
@@ -27,15 +28,21 @@ async function loadPrompt(brand: string, campaign?: string): Promise<string> {
   
   // Load global rules
   try {
-    const globalPath = path.join(process.cwd(), 'global-rules.md')
-    content += await fs.readFile(globalPath, 'utf-8') + '\n\n'
+    const globalPath = path.join(process.cwd(), 'prompts', 'global', 'rules_v1.md')
+    const globalContent = await fs.readFile(globalPath, 'utf-8')
+    const { content: globalRules } = matter(globalContent)
+    content += globalRules + '\n\n'
   } catch (err) {
     console.log('No global rules found')
   }
   
   // Load brand prompt
   try {
-    const brandPath = path.join(process.cwd(), 'prompts', brand, 'prompt.md')
+    const clientsDir = path.join(process.cwd(), 'prompts', 'clients', brand)
+    const brandFiles = await fs.readdir(clientsDir)
+    const brandFile = brandFiles.find(f => f.startsWith('_brand_v') && f.endsWith('.md'))
+    if (!brandFile) throw new Error('No brand file found')
+    const brandPath = path.join(clientsDir, brandFile)
     const brandContent = await fs.readFile(brandPath, 'utf-8')
     const { content: brandPrompt } = matter(brandContent)
     content += brandPrompt + '\n\n'
@@ -46,7 +53,11 @@ async function loadPrompt(brand: string, campaign?: string): Promise<string> {
   // Load campaign prompt if specified
   if (campaign) {
     try {
-      const campaignPath = path.join(process.cwd(), 'prompts', brand, campaign, 'prompt.md')
+      const clientsDir = path.join(process.cwd(), 'prompts', 'clients', brand)
+      const campaignFiles = await fs.readdir(clientsDir)
+      const campaignFile = campaignFiles.find(f => f.startsWith(`${campaign}_v`) && f.endsWith('.md'))
+      if (!campaignFile) throw new Error('No campaign file found')
+      const campaignPath = path.join(clientsDir, campaignFile)
       const campaignContent = await fs.readFile(campaignPath, 'utf-8')
       const { content: campaignPrompt } = matter(campaignContent)
       content += campaignPrompt + '\n\n'
@@ -73,10 +84,11 @@ Hook Appeal: ${config.hookAppeal}
 Character Limit: ${config.charCap}
 Blueprint: ${config.blueprint}
 ${config.addSelfAwareJoke ? 'Include a self-aware joke in the content.' : ''}
+${config.addBottomText ? 'Format each hook with bottom text included, separating top and bottom with " | " (pipe character).' : ''}
 ${config.toneStrength ? `Tone Strength: ${config.toneStrength}%` : ''}
 ${config.rageBaitIntensity ? `Rage Bait Intensity: ${config.rageBaitIntensity}%` : ''}
 
-Return ONLY the hooks, one per line, no numbering or formatting.`
+Return ONLY the hooks, one per line, no numbering or formatting.${config.addBottomText ? ' Use format: "Top text | Bottom text"' : ''}`
 
     const message = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
