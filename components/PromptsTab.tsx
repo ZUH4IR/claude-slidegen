@@ -1,7 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Save, RefreshCw, FileText, FolderOpen, ChevronRight, ChevronDown, Sparkles, Target, Plus, Bot, Send } from 'lucide-react'
+import { 
+  Save, RefreshCw, FileText, FolderOpen, ChevronRight, ChevronDown, 
+  Sparkles, Target, Plus, Bot, Send, Upload, Eye, Code, 
+  Zap, Settings, Copy
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -9,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
 interface PromptFile {
@@ -29,6 +34,25 @@ interface ChatMessage {
   content: string
 }
 
+interface StructuredBrand {
+  name: string
+  voiceAddons: string[]
+  imageBuckets: string[]
+  integrationRule: string
+  keyValues: string[]
+  messageGuidelines: string[]
+}
+
+interface StructuredCampaign {
+  name: string
+  brand: string
+  type: string
+  duration: string
+  hookTemplates: string[]
+  contentPillars: string[]
+  ctaVariations: string[]
+}
+
 export default function PromptsTab() {
   const [files, setFiles] = useState<PromptFile[]>([])
   const [selectedFile, setSelectedFile] = useState<PromptFile | null>(null)
@@ -37,24 +61,50 @@ export default function PromptsTab() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set())
+  const [viewMode, setViewMode] = useState<'structured' | 'raw'>('structured')
   
   // Dialog states
   const [showBrandDialog, setShowBrandDialog] = useState(false)
   const [showCampaignDialog, setShowCampaignDialog] = useState(false)
+  const [showAIModal, setShowAIModal] = useState(false)
   const [selectedBrandForCampaign, setSelectedBrandForCampaign] = useState('')
   
-  // Form states
-  const [brandForm, setBrandForm] = useState({ name: '', toneStrength: '80', voiceAttributes: '' })
-  const [campaignForm, setCampaignForm] = useState({ name: '', type: 'awareness', duration: '30' })
+  // Structured editing states
+  const [structuredBrand, setStructuredBrand] = useState<StructuredBrand>({
+    name: '',
+    voiceAddons: [''],
+    imageBuckets: [''],
+    integrationRule: '',
+    keyValues: [''],
+    messageGuidelines: ['']
+  })
+  
+  const [structuredCampaign, setStructuredCampaign] = useState<StructuredCampaign>({
+    name: '',
+    brand: '',
+    type: 'awareness',
+    duration: '30',
+    hookTemplates: [''],
+    contentPillars: [''],
+    ctaVariations: ['']
+  })
   
   // AI Assistant
-  const [showAIAssistant, setShowAIAssistant] = useState(false)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
 
   useEffect(() => {
     loadFiles()
   }, [])
+
+  useEffect(() => {
+    // Parse structured content when file is selected
+    if (selectedFile && selectedFile.type === 'brand') {
+      parseStructuredBrand(editedContent)
+    } else if (selectedFile && selectedFile.type === 'campaign') {
+      parseStructuredCampaign(editedContent)
+    }
+  }, [selectedFile, editedContent])
 
   const loadFiles = async () => {
     setLoading(true)
@@ -79,6 +129,17 @@ export default function PromptsTab() {
   const saveFile = async () => {
     if (!selectedFile) return
     
+    let contentToSave = editedContent
+    
+    // If in structured mode, convert to markdown
+    if (viewMode === 'structured') {
+      if (selectedFile.type === 'brand') {
+        contentToSave = convertBrandToMarkdown(structuredBrand)
+      } else if (selectedFile.type === 'campaign') {
+        contentToSave = convertCampaignToMarkdown(structuredCampaign)
+      }
+    }
+    
     setSaving(true)
     try {
       const response = await fetch('/api/prompts', {
@@ -86,7 +147,7 @@ export default function PromptsTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           filePath: selectedFile.path,
-          content: editedContent
+          content: contentToSave
         })
       })
       
@@ -94,11 +155,12 @@ export default function PromptsTab() {
       
       const updatedFiles = files.map(f => 
         f.path === selectedFile.path 
-          ? { ...f, content: editedContent }
+          ? { ...f, content: contentToSave }
           : f
       )
       setFiles(updatedFiles)
-      setSelectedFile({ ...selectedFile, content: editedContent })
+      setSelectedFile({ ...selectedFile, content: contentToSave })
+      setEditedContent(contentToSave)
       
       setMessage({ type: 'success', text: 'File saved successfully!' })
     } catch (err) {
@@ -108,97 +170,143 @@ export default function PromptsTab() {
     }
   }
 
-  const createBrand = async () => {
-    const content = `---
-brand: ${brandForm.name}
-tone_strength: ${brandForm.toneStrength}
-voice_attributes:
-${brandForm.voiceAttributes.split(',').map(attr => `  - ${attr.trim()}`).join('\n')}
----
-
-# ${brandForm.name} Brand Voice
-
-## Core Identity
-Define your brand's core identity here.
-
-## Voice Guidelines
-- Key voice characteristic 1
-- Key voice characteristic 2
-- Key voice characteristic 3
-
-## Product Focus
-Describe what aspects of products to emphasize.
-
-## Banned Words
-List words to avoid in copy.`
-
-    try {
-      await fetch('/api/prompts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filePath: `brands/${brandForm.name.toLowerCase()}.md`,
-          content
-        })
-      })
-      
-      setShowBrandDialog(false)
-      setBrandForm({ name: '', toneStrength: '80', voiceAttributes: '' })
-      await loadFiles()
-      setMessage({ type: 'success', text: 'Brand created successfully!' })
-    } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to create brand' })
+  const parseStructuredBrand = (content: string) => {
+    // Parse markdown to structured format
+    const sections = content.split('##').map(s => s.trim())
+    const brand: StructuredBrand = {
+      name: selectedFile?.name.replace('.md', '') || '',
+      voiceAddons: [],
+      imageBuckets: [],
+      integrationRule: '',
+      keyValues: [],
+      messageGuidelines: []
     }
+    
+    sections.forEach(section => {
+      if (section.includes('Brand Voice')) {
+        const lines = section.split('\n').slice(1)
+        brand.voiceAddons = lines.filter(l => l.trim()).map(l => l.replace('- ', ''))
+      } else if (section.includes('Key Values')) {
+        const lines = section.split('\n').slice(1)
+        brand.keyValues = lines.filter(l => l.trim()).map(l => l.replace(/^\d+\.\s*/, ''))
+      }
+    })
+    
+    setStructuredBrand(brand)
   }
 
-  const createCampaign = async () => {
-    const content = `---
-campaign: ${campaignForm.name}
-brand: ${selectedBrandForCampaign}
-campaign_type: ${campaignForm.type}
-duration_days: ${campaignForm.duration}
-rage_bait_intensity: 50
-hook_style: engaging
-cta_urgency: medium
+  const parseStructuredCampaign = (content: string) => {
+    const lines = content.split('\n')
+    const metadata: { [key: string]: string } = {}
+    let inFrontMatter = false
+    
+    const campaign: StructuredCampaign = {
+      name: '',
+      brand: '',
+      type: 'awareness',
+      duration: '30',
+      hookTemplates: [],
+      contentPillars: [],
+      ctaVariations: []
+    }
+    
+    lines.forEach(line => {
+      if (line.trim() === '---') {
+        inFrontMatter = !inFrontMatter
+      } else if (inFrontMatter) {
+        const match = line.match(/^(\w+):\s*(.*)$/)
+        if (match) {
+          metadata[match[1]] = match[2]
+        }
+      }
+    })
+    
+    campaign.name = metadata.campaign || ''
+    campaign.brand = metadata.brand || ''
+    campaign.type = metadata.campaign_type || 'awareness'
+    campaign.duration = metadata.duration_days || '30'
+    
+    // Parse content sections
+    const sections = content.split('##').map(s => s.trim())
+    sections.forEach(section => {
+      if (section.includes('Hook Templates')) {
+        const lines = section.split('\n').slice(1)
+        campaign.hookTemplates = lines.filter(l => l.startsWith('-')).map(l => l.substring(2))
+      } else if (section.includes('Content Pillars')) {
+        const lines = section.split('\n').slice(1)
+        campaign.contentPillars = lines.filter(l => l.match(/^\d+\./)).map(l => l.replace(/^\d+\.\s*/, ''))
+      } else if (section.includes('CTA Variations')) {
+        const lines = section.split('\n').slice(1)
+        campaign.ctaVariations = lines.filter(l => l.startsWith('-')).map(l => l.substring(2))
+      }
+    })
+    
+    setStructuredCampaign(campaign)
+  }
+
+  const convertBrandToMarkdown = (brand: StructuredBrand): string => {
+    return `---
+brand: ${brand.name}
+tone_strength: 80
 ---
 
-# ${campaignForm.name}
+# ${brand.name} Brand Voice
 
-## Campaign Theme
-Define the main theme and approach for this campaign.
+## Brand Voice
+${brand.voiceAddons.map(v => `- ${v}`).join('\n')}
+
+## Key Values
+${brand.keyValues.map((v, i) => `${i + 1}. ${v}`).join('\n')}
+
+## Messaging Guidelines
+${brand.messageGuidelines.map(g => `- ${g}`).join('\n')}
+
+## Integration Rule
+${brand.integrationRule}
+
+## Image Buckets
+${brand.imageBuckets.map(b => `- ${b}`).join('\n')}`
+  }
+
+  const convertCampaignToMarkdown = (campaign: StructuredCampaign): string => {
+    return `---
+campaign: ${campaign.name}
+brand: ${campaign.brand}
+campaign_type: ${campaign.type}
+duration_days: ${campaign.duration}
+---
+
+# ${campaign.name}
 
 ## Hook Templates
-- Template 1: {variable}
-- Template 2: {variable}
-- Template 3: {variable}
+${campaign.hookTemplates.map(h => `- ${h}`).join('\n')}
 
 ## Content Pillars
-1. Pillar 1
-2. Pillar 2
-3. Pillar 3
+${campaign.contentPillars.map((p, i) => `${i + 1}. ${p}`).join('\n')}
 
 ## CTA Variations
-- CTA option 1
-- CTA option 2
-- CTA option 3`
+${campaign.ctaVariations.map(c => `- ${c}`).join('\n')}`
+  }
 
-    try {
-      await fetch('/api/prompts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filePath: `campaigns/${selectedBrandForCampaign}_${campaignForm.name.toLowerCase().replace(/\s+/g, '_')}.md`,
-          content
-        })
-      })
-      
-      setShowCampaignDialog(false)
-      setCampaignForm({ name: '', type: 'awareness', duration: '30' })
-      await loadFiles()
-      setMessage({ type: 'success', text: 'Campaign created successfully!' })
-    } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to create campaign' })
-    }
+  const addArrayItem = (array: string[], setter: (value: any) => void, key: string) => {
+    setter((prev: any) => ({
+      ...prev,
+      [key]: [...prev[key], '']
+    }))
+  }
+
+  const updateArrayItem = (array: string[], index: number, value: string, setter: (value: any) => void, key: string) => {
+    setter((prev: any) => ({
+      ...prev,
+      [key]: prev[key].map((item: string, i: number) => i === index ? value : item)
+    }))
+  }
+
+  const removeArrayItem = (array: string[], index: number, setter: (value: any) => void, key: string) => {
+    setter((prev: any) => ({
+      ...prev,
+      [key]: prev[key].filter((_: string, i: number) => i !== index)
+    }))
   }
 
   const sendChatMessage = async () => {
@@ -208,11 +316,11 @@ Define the main theme and approach for this campaign.
     setChatMessages([...chatMessages, userMessage])
     setChatInput('')
     
-    // Simulate AI response (in real app, this would call an API)
+    // Simulate AI response
     setTimeout(() => {
       const assistantMessage: ChatMessage = {
         role: 'assistant',
-        content: `I understand you want to edit the prompt. Based on the current context of brand "${selectedFile?.name}", I suggest focusing on making the voice more conversational and adding specific product benefits. Would you like me to help you restructure the hook templates?`
+        content: `I've analyzed your request. Based on the current ${selectedFile?.type} configuration, I suggest:\n\n1. Making the hooks more engaging by adding emotional triggers\n2. Incorporating trending topics from your uploaded CSVs\n3. Adjusting the tone to match your brand voice\n\nWould you like me to generate specific examples?`
       }
       setChatMessages(prev => [...prev, assistantMessage])
     }, 1000)
@@ -283,32 +391,6 @@ Define the main theme and approach for this campaign.
   const blueprintFiles = files.filter(f => getFileType(f.path) === 'blueprint')
   const otherFiles = files.filter(f => getFileType(f.path) === 'other')
 
-  // Parse structured content for campaigns
-  const parseStructuredContent = (content: string) => {
-    const lines = content.split('\n')
-    const metadata: { [key: string]: string } = {}
-    let inFrontMatter = false
-    let contentStart = 0
-    
-    lines.forEach((line, index) => {
-      if (line.trim() === '---') {
-        if (!inFrontMatter) {
-          inFrontMatter = true
-        } else {
-          inFrontMatter = false
-          contentStart = index + 1
-        }
-      } else if (inFrontMatter) {
-        const match = line.match(/^(\w+):\s*(.*)$/)
-        if (match) {
-          metadata[match[1]] = match[2]
-        }
-      }
-    })
-    
-    return { metadata, content: lines.slice(contentStart).join('\n') }
-  }
-
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
@@ -352,55 +434,9 @@ Define the main theme and approach for this campaign.
                       <Sparkles className="h-4 w-4 text-purple-500" />
                       Brands & Campaigns
                     </div>
-                    <Dialog open={showBrandDialog} onOpenChange={setShowBrandDialog}>
-                      <DialogTrigger asChild>
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Create New Brand</DialogTitle>
-                          <DialogDescription>
-                            Add a new brand with its voice configuration.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="brand-name">Brand Name</Label>
-                            <Input
-                              id="brand-name"
-                              value={brandForm.name}
-                              onChange={(e) => setBrandForm({ ...brandForm, name: e.target.value })}
-                              placeholder="e.g., Nike, Apple"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="tone-strength">Tone Strength ({brandForm.toneStrength}%)</Label>
-                            <Input
-                              id="tone-strength"
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={brandForm.toneStrength}
-                              onChange={(e) => setBrandForm({ ...brandForm, toneStrength: e.target.value })}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="voice-attributes">Voice Attributes (comma-separated)</Label>
-                            <Input
-                              id="voice-attributes"
-                              value={brandForm.voiceAttributes}
-                              onChange={(e) => setBrandForm({ ...brandForm, voiceAttributes: e.target.value })}
-                              placeholder="energetic, playful, authentic"
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button onClick={createBrand}>Create Brand</Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setShowBrandDialog(true)}>
+                      <Plus className="h-3 w-3" />
+                    </Button>
                   </div>
                   
                   <div className="space-y-1">
@@ -410,7 +446,7 @@ Define the main theme and approach for this campaign.
                         <div key={group.brand}>
                           <button
                             onClick={() => toggleBrand(group.brand)}
-                            className="flex items-center gap-1 w-full px-2 py-1.5 text-sm rounded-md hover:bg-gray-100 transition-colors"
+                            className="flex items-center gap-1 w-full px-2 py-1.5 text-sm rounded-md hover:bg-gray-100 transition-colors text-left"
                           >
                             {isExpanded ? (
                               <ChevronDown className="h-3 w-3 text-gray-400" />
@@ -428,7 +464,7 @@ Define the main theme and approach for this campaign.
                                   key={file.path}
                                   onClick={() => selectFile(file)}
                                   className={cn(
-                                    "flex items-center gap-2 w-full px-2 py-1 text-sm rounded-md hover:bg-gray-100 transition-colors",
+                                    "flex items-center gap-2 w-full px-2 py-1 text-sm rounded-md hover:bg-gray-100 transition-colors text-left",
                                     selectedFile?.path === file.path && "bg-blue-50 text-blue-700"
                                   )}
                                 >
@@ -460,7 +496,7 @@ Define the main theme and approach for this campaign.
                                     key={file.path}
                                     onClick={() => selectFile(file)}
                                     className={cn(
-                                      "flex items-center gap-2 w-full px-2 py-1 text-sm rounded-md hover:bg-gray-100 transition-colors ml-4",
+                                      "flex items-center gap-2 w-full px-2 py-1 text-sm rounded-md hover:bg-gray-100 transition-colors ml-4 text-left",
                                       selectedFile?.path === file.path && "bg-blue-50 text-blue-700"
                                     )}
                                   >
@@ -492,7 +528,7 @@ Define the main theme and approach for this campaign.
                           key={file.path}
                           onClick={() => selectFile(file)}
                           className={cn(
-                            "flex items-center gap-2 w-full px-2 py-1 text-sm rounded-md hover:bg-gray-100 transition-colors",
+                            "flex items-center gap-2 w-full px-2 py-1 text-sm rounded-md hover:bg-gray-100 transition-colors text-left",
                             selectedFile?.path === file.path && "bg-blue-50 text-blue-700"
                           )}
                         >
@@ -517,12 +553,12 @@ Define the main theme and approach for this campaign.
                           key={file.path}
                           onClick={() => selectFile(file)}
                           className={cn(
-                            "flex items-center gap-2 w-full px-2 py-1 text-sm rounded-md hover:bg-gray-100 transition-colors",
+                            "flex items-center gap-2 w-full px-2 py-1 text-sm rounded-md hover:bg-gray-100 transition-colors text-left",
                             selectedFile?.path === file.path && "bg-blue-50 text-blue-700"
                           )}
                         >
                           <FileText className="h-3 w-3 text-gray-400" />
-                          <span className="truncate text-left">{file.name}</span>
+                          <span className="truncate">{file.name}</span>
                         </button>
                       ))}
                     </div>
@@ -551,7 +587,7 @@ Define the main theme and approach for this campaign.
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowAIAssistant(!showAIAssistant)}
+                    onClick={() => setShowAIModal(true)}
                   >
                     <Bot className="h-4 w-4 mr-2" />
                     AI Assistant
@@ -566,34 +602,198 @@ Define the main theme and approach for this campaign.
                 </div>
               </CardHeader>
               <CardContent>
-                {selectedFile.path.includes('campaign') && (() => {
-                  const { metadata } = parseStructuredContent(editedContent)
-                  return (
-                    <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">Campaign:</span>
-                          <span className="ml-2 font-medium">{metadata.campaign || 'N/A'}</span>
+                {(selectedFile.type === 'brand' || selectedFile.type === 'campaign') && (
+                  <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'structured' | 'raw')} className="mb-4">
+                    <TabsList>
+                      <TabsTrigger value="structured">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Structured
+                      </TabsTrigger>
+                      <TabsTrigger value="raw">
+                        <Code className="h-4 w-4 mr-2" />
+                        Raw
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                )}
+                
+                {viewMode === 'structured' && selectedFile.type === 'brand' ? (
+                  <div className="space-y-6">
+                    <div>
+                      <Label>Brand Name</Label>
+                      <Input
+                        value={structuredBrand.name}
+                        onChange={(e) => setStructuredBrand({ ...structuredBrand, name: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label>Voice Add-ons</Label>
+                      <p className="text-sm text-gray-500 mb-2">Define your brand's voice characteristics</p>
+                      {structuredBrand.voiceAddons.map((voice, index) => (
+                        <div key={index} className="flex gap-2 mb-2">
+                          <Input
+                            value={voice}
+                            onChange={(e) => updateArrayItem(structuredBrand.voiceAddons, index, e.target.value, setStructuredBrand, 'voiceAddons')}
+                            placeholder="e.g., confident, relatable, innovative"
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeArrayItem(structuredBrand.voiceAddons, index, setStructuredBrand, 'voiceAddons')}
+                          >
+                            ×
+                          </Button>
                         </div>
-                        <div>
-                          <span className="text-gray-500">Type:</span>
-                          <span className="ml-2 font-medium">{metadata.campaign_type || 'N/A'}</span>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addArrayItem(structuredBrand.voiceAddons, setStructuredBrand, 'voiceAddons')}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Voice Trait
+                      </Button>
+                    </div>
+                    
+                    <div>
+                      <Label>Key Values</Label>
+                      <p className="text-sm text-gray-500 mb-2">Core values that drive your brand</p>
+                      {structuredBrand.keyValues.map((value, index) => (
+                        <div key={index} className="flex gap-2 mb-2">
+                          <Input
+                            value={value}
+                            onChange={(e) => updateArrayItem(structuredBrand.keyValues, index, e.target.value, setStructuredBrand, 'keyValues')}
+                            placeholder="e.g., Authenticity over perfection"
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeArrayItem(structuredBrand.keyValues, index, setStructuredBrand, 'keyValues')}
+                          >
+                            ×
+                          </Button>
                         </div>
-                        <div>
-                          <span className="text-gray-500">Duration:</span>
-                          <span className="ml-2 font-medium">{metadata.duration_days || 'N/A'} days</span>
-                        </div>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addArrayItem(structuredBrand.keyValues, setStructuredBrand, 'keyValues')}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Value
+                      </Button>
+                    </div>
+                    
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <h4 className="font-medium mb-2 flex items-center gap-2">
+                        <Eye className="h-4 w-4" />
+                        Preview
+                      </h4>
+                      <pre className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {convertBrandToMarkdown(structuredBrand)}
+                      </pre>
+                    </div>
+                  </div>
+                ) : viewMode === 'structured' && selectedFile.type === 'campaign' ? (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Campaign Name</Label>
+                        <Input
+                          value={structuredCampaign.name}
+                          onChange={(e) => setStructuredCampaign({ ...structuredCampaign, name: e.target.value })}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label>Campaign Type</Label>
+                        <select
+                          className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={structuredCampaign.type}
+                          onChange={(e) => setStructuredCampaign({ ...structuredCampaign, type: e.target.value })}
+                        >
+                          <option value="awareness">Awareness</option>
+                          <option value="conversion">Conversion</option>
+                          <option value="engagement">Engagement</option>
+                          <option value="retention">Retention</option>
+                        </select>
                       </div>
                     </div>
-                  )
-                })()}
+                    
+                    <div>
+                      <Label>Hook Templates</Label>
+                      <p className="text-sm text-gray-500 mb-2">Templates with {'{variables}'} for dynamic content</p>
+                      {structuredCampaign.hookTemplates.map((hook, index) => (
+                        <div key={index} className="flex gap-2 mb-2">
+                          <Input
+                            value={hook}
+                            onChange={(e) => updateArrayItem(structuredCampaign.hookTemplates, index, e.target.value, setStructuredCampaign, 'hookTemplates')}
+                            placeholder="e.g., Did you know {shocking_fact} about {topic}?"
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeArrayItem(structuredCampaign.hookTemplates, index, setStructuredCampaign, 'hookTemplates')}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addArrayItem(structuredCampaign.hookTemplates, setStructuredCampaign, 'hookTemplates')}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Hook Template
+                      </Button>
+                    </div>
+                    
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <h4 className="font-medium mb-2 flex items-center gap-2">
+                        <Eye className="h-4 w-4" />
+                        Preview with Sample Variables
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        {structuredCampaign.hookTemplates.map((hook, index) => (
+                          <div key={index} className="p-2 bg-white rounded border">
+                            {hook.replace(/{(\w+)}/g, (match, variable) => {
+                              const samples: { [key: string]: string } = {
+                                shocking_fact: "90% of people",
+                                topic: "productivity",
+                                number: "5",
+                                benefit: "save hours daily"
+                              }
+                              return samples[variable] || `[${variable}]`
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        // Generate hooks using AI
+                        setMessage({ type: 'success', text: 'Generating hooks...' })
+                      }}
+                    >
+                      <Zap className="h-4 w-4 mr-2" />
+                      Generate Hook Variations
+                    </Button>
+                  </div>
+                ) : (
+                  <Textarea
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                    className="min-h-[500px] font-mono text-sm border-gray-200"
+                    placeholder="Enter your content here..."
+                  />
+                )}
                 
-                <Textarea
-                  value={editedContent}
-                  onChange={(e) => setEditedContent(e.target.value)}
-                  className="min-h-[500px] font-mono text-sm border-gray-200"
-                  placeholder="Enter your content here..."
-                />
                 {hasUnsavedChanges && (
                   <p className="text-sm text-amber-600 mt-2">
                     You have unsaved changes
@@ -612,60 +812,142 @@ Define the main theme and approach for this campaign.
         </Card>
       </div>
 
-      {/* AI Assistant Panel */}
-      {showAIAssistant && (
-        <div className="fixed bottom-4 right-4 w-96 h-96 bg-white rounded-lg shadow-xl border overflow-hidden flex flex-col">
-          <div className="p-4 border-b flex items-center justify-between">
-            <h3 className="font-semibold flex items-center gap-2">
+      {/* AI Assistant Modal */}
+      <Dialog open={showAIModal} onOpenChange={setShowAIModal}>
+        <DialogContent className="max-w-2xl h-[600px] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
-              AI Assistant
-            </h3>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowAIAssistant(false)}
-            >
-              ×
-            </Button>
-          </div>
+              AI Prompt Assistant
+            </DialogTitle>
+            <DialogDescription>
+              I can help you improve your prompts based on campaign data and best practices.
+            </DialogDescription>
+          </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto space-y-4 py-4">
             {chatMessages.length === 0 ? (
-              <p className="text-gray-500 text-sm">
-                Hi! I can help you edit your prompts. I have context about your current brand, campaigns, and universal engine. What would you like to improve?
-              </p>
+              <div className="text-center text-gray-500 space-y-4">
+                <p>Hi! I can help you:</p>
+                <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
+                  <Button variant="outline" size="sm" onClick={() => setChatInput("Analyze my hook templates")}>
+                    <Target className="h-4 w-4 mr-2" />
+                    Analyze Hooks
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setChatInput("Suggest improvements")}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Improve Copy
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setChatInput("Generate variations")}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Create Variations
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload CSV
+                  </Button>
+                </div>
+              </div>
             ) : (
               chatMessages.map((msg, index) => (
                 <div
                   key={index}
                   className={cn(
-                    "p-3 rounded-lg text-sm",
+                    "p-3 rounded-lg",
                     msg.role === 'user' 
-                      ? "bg-blue-50 ml-8" 
-                      : "bg-gray-50 mr-8"
+                      ? "bg-blue-50 ml-12" 
+                      : "bg-gray-50 mr-12"
                   )}
                 >
-                  {msg.content}
+                  <p className="text-sm">{msg.content}</p>
                 </div>
               ))
             )}
           </div>
           
-          <div className="p-4 border-t">
+          <div className="border-t pt-4">
             <div className="flex gap-2">
               <Input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask for help with your prompts..."
+                placeholder="Ask about your prompts or upload CSV data..."
                 onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
               />
-              <Button size="sm" onClick={sendChatMessage}>
+              <Button onClick={sendChatMessage}>
                 <Send className="h-4 w-4" />
               </Button>
             </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Brand Creation Dialog */}
+      <Dialog open={showBrandDialog} onOpenChange={setShowBrandDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Brand</DialogTitle>
+            <DialogDescription>
+              Set up a new brand with its unique voice and values.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="brand-name">Brand Name</Label>
+              <Input
+                id="brand-name"
+                placeholder="e.g., Nike, Apple"
+                value={structuredBrand.name}
+                onChange={(e) => setStructuredBrand({ ...structuredBrand, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="voice-traits">Voice Traits (comma-separated)</Label>
+              <Input
+                id="voice-traits"
+                placeholder="e.g., bold, innovative, friendly"
+                value={structuredBrand.voiceAddons.join(', ')}
+                onChange={(e) => setStructuredBrand({ 
+                  ...structuredBrand, 
+                  voiceAddons: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={async () => {
+              const brandName = structuredBrand.name.toLowerCase().replace(/\s+/g, '_')
+              const content = convertBrandToMarkdown(structuredBrand)
+              
+              try {
+                await fetch('/api/prompts', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    filePath: `brands/${brandName}.md`,
+                    content
+                  })
+                })
+                
+                setShowBrandDialog(false)
+                setStructuredBrand({
+                  name: '',
+                  voiceAddons: [''],
+                  imageBuckets: [''],
+                  integrationRule: '',
+                  keyValues: [''],
+                  messageGuidelines: ['']
+                })
+                await loadFiles()
+                setMessage({ type: 'success', text: 'Brand created successfully!' })
+              } catch (err) {
+                setMessage({ type: 'error', text: 'Failed to create brand' })
+              }
+            }}>
+              Create Brand
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Campaign Creation Dialog */}
       <Dialog open={showCampaignDialog} onOpenChange={setShowCampaignDialog}>
@@ -681,9 +963,9 @@ Define the main theme and approach for this campaign.
               <Label htmlFor="campaign-name">Campaign Name</Label>
               <Input
                 id="campaign-name"
-                value={campaignForm.name}
-                onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
                 placeholder="e.g., Summer Sale 2024"
+                value={structuredCampaign.name}
+                onChange={(e) => setStructuredCampaign({ ...structuredCampaign, name: e.target.value })}
               />
             </div>
             <div>
@@ -691,8 +973,8 @@ Define the main theme and approach for this campaign.
               <select
                 id="campaign-type"
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={campaignForm.type}
-                onChange={(e) => setCampaignForm({ ...campaignForm, type: e.target.value })}
+                value={structuredCampaign.type}
+                onChange={(e) => setStructuredCampaign({ ...structuredCampaign, type: e.target.value })}
               >
                 <option value="awareness">Awareness</option>
                 <option value="conversion">Conversion</option>
@@ -700,18 +982,46 @@ Define the main theme and approach for this campaign.
                 <option value="retention">Retention</option>
               </select>
             </div>
-            <div>
-              <Label htmlFor="campaign-duration">Duration (days)</Label>
-              <Input
-                id="campaign-duration"
-                type="number"
-                value={campaignForm.duration}
-                onChange={(e) => setCampaignForm({ ...campaignForm, duration: e.target.value })}
-              />
-            </div>
           </div>
           <DialogFooter>
-            <Button onClick={createCampaign}>Create Campaign</Button>
+            <Button onClick={async () => {
+              const campaignName = structuredCampaign.name.toLowerCase().replace(/\s+/g, '_')
+              const content = convertCampaignToMarkdown({
+                ...structuredCampaign,
+                brand: selectedBrandForCampaign,
+                hookTemplates: ['Hook template 1: {variable}', 'Hook template 2: {variable}'],
+                contentPillars: ['Content pillar 1', 'Content pillar 2'],
+                ctaVariations: ['CTA option 1', 'CTA option 2']
+              })
+              
+              try {
+                await fetch('/api/prompts', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    filePath: `campaigns/${selectedBrandForCampaign}_${campaignName}.md`,
+                    content
+                  })
+                })
+                
+                setShowCampaignDialog(false)
+                setStructuredCampaign({
+                  name: '',
+                  brand: '',
+                  type: 'awareness',
+                  duration: '30',
+                  hookTemplates: [''],
+                  contentPillars: [''],
+                  ctaVariations: ['']
+                })
+                await loadFiles()
+                setMessage({ type: 'success', text: 'Campaign created successfully!' })
+              } catch (err) {
+                setMessage({ type: 'error', text: 'Failed to create campaign' })
+              }
+            }}>
+              Create Campaign
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

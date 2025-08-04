@@ -86,6 +86,11 @@ export async function getPromptFiles(): Promise<PromptFile[]> {
 
 export async function savePromptFile(filePath: string, content: string): Promise<void> {
   const fullPath = path.join(process.cwd(), 'prompts', filePath)
+  const dir = path.dirname(fullPath)
+  
+  // Create directory if it doesn't exist
+  await fs.mkdir(dir, { recursive: true })
+  
   await fs.writeFile(fullPath, content, 'utf-8')
 }
 

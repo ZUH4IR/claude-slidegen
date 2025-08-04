@@ -67,11 +67,49 @@ export default function GeneratorTab() {
     try {
       const response = await fetch('/api/prompts')
       const data = await response.json()
-      setOptions({
-        brands: data.brands,
-        campaigns: ['none', ...data.campaigns],
-        blueprints: data.blueprints
+      
+      // Extract brands from files
+      const brands = new Set<string>()
+      const campaigns = new Set<string>()
+      const blueprints: string[] = []
+      
+      data.files.forEach((file: any) => {
+        if (file.path.includes('brands/')) {
+          const brandName = file.path.split('/')[1].replace('.md', '')
+          brands.add(brandName)
+        } else if (file.path.includes('campaigns/')) {
+          const filename = file.path.split('/').pop() || ''
+          const brandName = filename.split('_')[0]
+          const campaignName = filename.replace('.md', '')
+          brands.add(brandName)
+          campaigns.add(campaignName)
+        } else if (file.path.includes('clients/')) {
+          const brandName = file.path.split('/')[1]
+          brands.add(brandName)
+        }
       })
+      
+      // Parse blueprints from YAML file
+      const blueprintFile = data.files.find((f: any) => f.path.includes('blueprints'))
+      if (blueprintFile) {
+        const lines = blueprintFile.content.split('\n')
+        lines.forEach((line: string) => {
+          if (line.match(/^[a-z_]+_\d+:$/)) {
+            blueprints.push(line.replace(':', ''))
+          }
+        })
+      }
+      
+      setOptions({
+        brands: Array.from(brands).sort(),
+        campaigns: ['none', ...Array.from(campaigns).sort()],
+        blueprints: blueprints
+      })
+      
+      // Update config to use first available brand
+      if (Array.from(brands).length > 0 && !brands.has(config.brandSlug)) {
+        setConfig({ ...config, brandSlug: Array.from(brands)[0] })
+      }
     } catch (err) {
       setError('Failed to load options')
     }
