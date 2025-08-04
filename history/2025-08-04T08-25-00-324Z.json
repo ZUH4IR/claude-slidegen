@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-08-04T08:25:00.324Z",
+  "config": {
+    "brand": "vibit",
+    "campaign": "older",
+    "blueprint": "medical_betrayal",
+    "rows": 5,
+    "hookAppeal": "drama",
+    "charCap": 95,
+    "topic": "ed",
+    "productSlide": 5,
+    "addSelfAwareJoke": false,
+    "addBottomText": false
+  },
+  "hooks": [
+    "my doctor said it was just stress until they found a tumor the size of a golf ball",
+    "they told me to lose weight for 6 years before finding the real issue hiding in my blood work",
+    "i trusted my doctor completely until i saw my chart notes. now i know why i almost died",
+    "\"you're too young to be this sick\" my doctor said. the specialist found stage 3 disease",
+    "went to 8 doctors before one actually ran the right test. turns out i was slowly dying"
+  ],
+  "csv": "Hook,Slide 1,Slide 2,Slide 3,Slide 4,Slide 5\n\"my doctor said it was just stress until they found a tumor the size of a golf ball\",\"kept telling me to meditate and do yoga while my symptoms got worse every month\",\"spent $2000 on therapy sessions and stress management workshops that did nothing\",\"finally collapsed at work and the ER scan showed what was really happening\",\"turns out meditation doesn't shrink tumors but catching them early does\",\"Vibit helps detect warning signs other doctors miss. don't wait like i did\"\n\"they told me to lose weight for 6 years before finding the real issue hiding in my blood work\",\"every appointment was the same: step on the scale and get lectured about diet\",\"dropped 50 pounds through extreme dieting but symptoms only got worse\",\"a new doctor actually ran full panels instead of just checking weight\",\"the problem was never about the number on the scale at all\",\"Vibit catches what basic blood work misses. get real answers now\"\n\"i trusted my doctor completely until i saw my chart notes. now i know why i almost died\",\"they wrote 'anxious female patient' and dismissed every symptom\",\"prescribed antidepressants while my organs were actually failing\",\"requested my records and found they never ran the tests i begged for\",\"the standard protocol was killing me while they blamed my mind\",\"Vibit's AI spots patterns doctors overlook. take control today\"\n\"'you're too young to be this sick' my doctor said. the specialist found stage 3 disease\",\"sent home with ibuprofen while cancer spread through my body\",\"wasted 8 months being told to 'wait and see' if it got worse\",\"young doesn't mean immune. age shouldn't determine care level\",\"early detection saves lives at ANY age\",\"Vibit detects issues regardless of your age. get screened now\"\n\"went to 8 doctors before one actually ran the right test. turns out i was slowly dying\",\"each one glanced at basic bloodwork and said everything was normal\",\"spent $12k out of pocket trying to prove something was wrong\",\"9th doctor ran one simple test others missed\",\"that one test changed everything and saved my life\",\"Vibit runs ALL the right tests first time. stop doctor shopping\""
+}

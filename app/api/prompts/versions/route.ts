@@ -1,39 +1,113 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { exec } from 'child_process'
-import { promisify } from 'util'
+import { promises as fs } from 'fs'
 import path from 'path'
+import matter from 'gray-matter'
 
-const execAsync = promisify(exec)
-
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const { brand, campaign } = await request.json()
+    const { searchParams } = new URL(request.url)
+    const client = searchParams.get('client')
+    const type = searchParams.get('type')
+    const campaign = searchParams.get('campaign')
     
-    let filePath: string
-    if (campaign) {
-      filePath = path.join('prompts', brand, campaign, 'prompt.md')
-    } else {
-      filePath = path.join('prompts', brand, 'prompt.md')
+    if (!client || !type) {
+      return NextResponse.json(
+        { error: 'Missing required parameters' },
+        { status: 400 }
+      )
     }
     
-    // Get git log for this file
-    const { stdout } = await execAsync(
-      `git log --pretty=format:'%H|%s|%ai|%an' -10 -- "${filePath}"`,
-      { cwd: process.cwd() }
+    const clientDir = path.join(process.cwd(), 'prompts', 'clients', client)
+    const files = await fs.readdir(clientDir)
+    
+    let versionFiles: string[] = []
+    if (type === 'brand') {
+      versionFiles = files.filter(f => f.startsWith('_brand_v') && f.endsWith('.md'))
+    } else if (type === 'campaign' && campaign) {
+      versionFiles = files.filter(f => f.startsWith(`${campaign}_v`) && f.endsWith('.md'))
+    }
+    
+    // Load version details
+    const versions = await Promise.all(
+      versionFiles.map(async (file) => {
+        const filePath = path.join(clientDir, file)
+        const content = await fs.readFile(filePath, 'utf-8')
+        const { data: frontmatter } = matter(content)
+        const stats = await fs.stat(filePath)
+        
+        const versionMatch = file.match(/_v(\d+)\.md$/)
+        const version = versionMatch ? parseInt(versionMatch[1]) : 1
+        
+        return {
+          version,
+          status: frontmatter.status || 'active',
+          createdAt: stats.birthtime.toISOString(),
+          modifiedAt: stats.mtime.toISOString(),
+          file
+        }
+      })
     )
     
-    const versions = stdout
-      .split('\n')
-      .filter(line => line.trim())
-      .map(line => {
-        const [hash, message, date, author] = line.split('|')
-        return { hash, message, date, author }
-      })
+    // Sort by version number descending
+    versions.sort((a, b) => b.version - a.version)
     
     return NextResponse.json({ versions })
   } catch (error) {
-    console.error('Error getting versions:', error)
-    // Return empty array if git is not initialized or file has no history
-    return NextResponse.json({ versions: [] })
+    console.error('Error loading versions:', error)
+    return NextResponse.json(
+      { error: 'Failed to load versions' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { client, type, campaign, version, action } = await request.json()
+    
+    if (!client || !type || !version || !action) {
+      return NextResponse.json(
+        { error: 'Missing required parameters' },
+        { status: 400 }
+      )
+    }
+    
+    const clientDir = path.join(process.cwd(), 'prompts', 'clients', client)
+    
+    if (action === 'activate') {
+      // Archive all other versions
+      const files = await fs.readdir(clientDir)
+      let versionFiles: string[] = []
+      
+      if (type === 'brand') {
+        versionFiles = files.filter(f => f.startsWith('_brand_v') && f.endsWith('.md'))
+      } else if (type === 'campaign' && campaign) {
+        versionFiles = files.filter(f => f.startsWith(`${campaign}_v`) && f.endsWith('.md'))
+      }
+      
+      for (const file of versionFiles) {
+        const filePath = path.join(clientDir, file)
+        const content = await fs.readFile(filePath, 'utf-8')
+        const { data: frontmatter, content: body } = matter(content)
+        
+        const versionMatch = file.match(/_v(\d+)\.md$/)
+        const fileVersion = versionMatch ? parseInt(versionMatch[1]) : 1
+        
+        // Update status
+        frontmatter.status = fileVersion === version ? 'active' : 'archived'
+        
+        // Write back
+        const newContent = matter.stringify(body, frontmatter)
+        await fs.writeFile(filePath, newContent)
+      }
+    }
+    
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error managing versions:', error)
+    return NextResponse.json(
+      { error: 'Failed to manage versions' },
+      { status: 500 }
+    )
   }
 }

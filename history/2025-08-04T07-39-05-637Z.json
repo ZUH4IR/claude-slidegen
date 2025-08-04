@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-08-04T07:39:05.637Z",
+  "config": {
+    "brand": "vibit",
+    "campaign": "older",
+    "blueprint": "medical_betrayal",
+    "rows": 2,
+    "hookAppeal": "drama",
+    "charCap": 95,
+    "topic": "older audience",
+    "productSlide": 5,
+    "addSelfAwareJoke": false,
+    "addBottomText": false
+  },
+  "hooks": [
+    "\"my doctor said it was normal aging pain...until i found the x-ray from 6 years ago they ignored\"",
+    "\"i thought my feet were supposed to hurt at 65...until my neighbor showed me what her doctor found\""
+  ],
+  "csv": "Hook,Slide 1,Slide 2,Slide 3,Slide 4,Slide 5\nmy doctor said it was normal aging pain...until i found the x-ray from 6 years ago they ignored,\"3 different doctors told me 'this is just part of getting older' while barely looking at my feet\",\"spent $2400 on 'special' shoes & orthotics that made everything worse\",\"found my old x-ray while cleaning. same exact issue was there in 2017. they never checked\",\"turns out Vibit could've fixed this in 2 weeks. no prescriptions or expensive treatments\",\"now i can garden for hours. and those doctors? they're getting my medical records tomorrow\"\ni thought my feet were supposed to hurt at 65...until my neighbor showed me what her doctor found,\"couldn't even walk to check my mailbox without stopping to rest halfway\",\"tried everything they suggested: stretches meditation weight loss physical therapy\",\"my neighbor (73!) was running circles around me at the block party. had to know why\",\"Vibit changed everything in 3 weeks. wish i knew about this instead of suffering\",\"dancing at my grandson's wedding next month. who's 'too old' now? not me\""
+}

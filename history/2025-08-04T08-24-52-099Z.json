@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-08-04T08:24:52.099Z",
+  "config": {
+    "brand": "vibit",
+    "campaign": "older",
+    "blueprint": "medical_betrayal",
+    "rows": 5,
+    "hookAppeal": "drama",
+    "charCap": 95,
+    "topic": "ed",
+    "productSlide": 5,
+    "addSelfAwareJoke": false,
+    "addBottomText": false
+  },
+  "hooks": [
+    "my doctor said it was just stress until they found a tumor the size of a golf ball",
+    "they told me to lose weight for 6 years before finding the real issue hiding in my blood work",
+    "i trusted my doctor completely until i saw my chart notes. now i know why i almost died",
+    "\"you're too young to be this sick\" my doctor said. the specialist found stage 3 disease",
+    "went to 8 doctors before one actually ran the right test. turns out i was slowly dying"
+  ],
+  "csv": "Hook,Slide 1,Slide 2,Slide 3,Slide 4,Slide 5\n\"you're too young to be this sick\" my doctor said. the specialist found stage 3 disease,they kept telling me to try yoga & meditation for 2 years straight,i did everything they said: therapy journaling breathing exercises,until i collapsed at work & the ER doc ordered actual tests,turns out meditation doesn't cure autoimmune disease who knew,Vibit helped me track my symptoms & get real answers in 2 weeks\nmy doctor said it was just stress until they found a tumor the size of a golf ball,they prescribed antidepressants & told me to take bubble baths,i spent $2000 on self care while the headaches got worse,the new doctor's face went white when he saw my scan,turns out \"just stress\" was pressing on my brain stem,Vibit's symptom tracker showed the pattern they missed\nwent to 8 doctors before one actually ran the right test. turns out i was slowly dying,every single one said my bloodwork was \"normal\",i kept a folder of \"normal\" results while losing 30 pounds,the 9th doctor actually looked at my thyroid levels,sometimes \"normal\" range isn't normal for YOUR body,Vibit helped me find a doctor who actually listened\nthey told me to lose weight for 6 years before finding the real issue in my blood work,apparently everything is fixed by \"diet and exercise\",i worked out 5x a week & lived on salads. still sick,one test showed my hormones were completely destroyed,watching them backtrack on 6 years of fat-shaming was wild,Vibit connected me with doctors who check hormones first\ni trusted my doctor completely until i saw my chart notes. now i know why i almost died,they wrote \"anxious female\" on every single visit,meanwhile my organs were quietly shutting down,found my charts called me \"dramatic\" & \"attention-seeking\",bet they felt dramatic when the specialist found the disease,Vibit's tracking proved i wasn't \"making it all up\""
+}

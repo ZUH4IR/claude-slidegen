@@ -54,7 +54,7 @@ export async function GET() {
     }
     
     return NextResponse.json({
-      brands,
+      clients: brands, // Return as clients for consistency
       campaigns,
       blueprints
     })

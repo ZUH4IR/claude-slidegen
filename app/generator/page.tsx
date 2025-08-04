@@ -13,11 +13,14 @@ import { Switch } from '@/components/ui/switch'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Play, Copy, Loader2 } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Play, Copy, Loader2, Download, ChevronDown, FileSpreadsheet, Eye } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { ExcelTable } from '@/components/ExcelTable'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 
 interface Config {
-  brand: string
+  client: string
   campaign: string
   blueprint: string
   rows: number
@@ -32,18 +35,30 @@ interface Config {
 }
 
 interface Options {
-  brands: string[]
-  campaigns: { [brand: string]: string[] }
+  clients: string[]
+  campaigns: { [client: string]: string[] }
   blueprints: string[]
+}
+
+interface Hook {
+  text: string
+  selected: boolean
+  edited?: string
+}
+
+interface TableRow {
+  hook: string
+  slides: string[]
 }
 
 export default function GeneratorPage() {
   const { toast } = useToast()
+  const [debugMode, setDebugMode] = useState(false)
   const [config, setConfig] = useState<Config>({
-    brand: '',
+    client: '',
     campaign: '',
     blueprint: '',
-    rows: 2,
+    rows: 5,
     hookAppeal: 'drama',
     charCap: 95,
     topic: '',
@@ -53,21 +68,87 @@ export default function GeneratorPage() {
   })
   
   const [options, setOptions] = useState<Options>({
-    brands: [],
+    clients: [],
     campaigns: {},
     blueprints: []
   })
   
   const [loading, setLoading] = useState(false)
-  const [hooks, setHooks] = useState<string[]>([])
-  const [editedHooks, setEditedHooks] = useState<string[]>([])
+  const [hooks, setHooks] = useState<Hook[]>([])
   const [showHooksModal, setShowHooksModal] = useState(false)
+  const [showTablePreview, setShowTablePreview] = useState(false)
+  const [tableData, setTableData] = useState<TableRow[]>([])
   const [csvResult, setCsvResult] = useState('')
   const [error, setError] = useState('')
+  const [showDebugPreview, setShowDebugPreview] = useState(false)
+  const [debugPromptChain, setDebugPromptChain] = useState<any>(null)
+  const [recentTopics, setRecentTopics] = useState<string[]>([])
 
   useEffect(() => {
     loadOptions()
+    // Load saved config from localStorage
+    const savedConfig = localStorage.getItem('generatorConfig')
+    if (savedConfig) {
+      try {
+        const parsed = JSON.parse(savedConfig)
+        setConfig(prev => ({ ...prev, ...parsed }))
+      } catch (err) {
+        console.error('Failed to parse saved config:', err)
+      }
+    }
+    
+    // Load recent topics
+    const savedTopics = localStorage.getItem('recentTopics')
+    if (savedTopics) {
+      try {
+        setRecentTopics(JSON.parse(savedTopics))
+      } catch (err) {
+        console.error('Failed to parse recent topics:', err)
+      }
+    }
   }, [])
+
+  // Save config to localStorage whenever it changes
+  useEffect(() => {
+    if (config.client || config.blueprint || config.topic) {
+      localStorage.setItem('generatorConfig', JSON.stringify(config))
+    }
+  }, [config])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + Enter to generate
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault()
+        if (!loading && config.client && config.blueprint && config.topic) {
+          // Trigger button click instead of calling function directly
+          const generateButton = document.querySelector('[data-generate-button]') as HTMLButtonElement
+          if (generateButton) generateButton.click()
+        }
+      }
+      
+      // Cmd/Ctrl + D for debug preview
+      if ((e.metaKey || e.ctrlKey) && e.key === 'd' && debugMode) {
+        e.preventDefault()
+        if (!loading && config.client && config.blueprint && config.topic) {
+          // Trigger button click instead of calling function directly
+          const previewButton = document.querySelector('[data-preview-button]') as HTMLButtonElement
+          if (previewButton) previewButton.click()
+        }
+      }
+      
+      // Escape to close modals
+      if (e.key === 'Escape') {
+        if (showHooksModal) setShowHooksModal(false)
+        if (showTablePreview) setShowTablePreview(false)
+        if (showDebugPreview) setShowDebugPreview(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [config.client, config.blueprint, config.topic, loading, debugMode, showHooksModal, showTablePreview, showDebugPreview])
 
   const loadOptions = async () => {
     try {
@@ -75,9 +156,11 @@ export default function GeneratorPage() {
       const data = await res.json()
       setOptions(data)
       
-      // Set first brand as default
-      if (data.brands.length > 0) {
-        setConfig(prev => ({ ...prev, brand: data.brands[0] }))
+      // Set first client as default
+      if (data.clients && data.clients.length > 0) {
+        const firstClient = data.clients[0]
+        const firstCampaign = data.campaigns[firstClient]?.[0] || ''
+        setConfig(prev => ({ ...prev, client: firstClient, campaign: firstCampaign }))
       }
     } catch (err) {
       setError('Failed to load options')
@@ -87,6 +170,13 @@ export default function GeneratorPage() {
   const generateHooks = async () => {
     setLoading(true)
     setError('')
+    
+    // Save topic to recent topics
+    if (config.topic && !recentTopics.includes(config.topic)) {
+      const updatedTopics = [config.topic, ...recentTopics.slice(0, 4)]
+      setRecentTopics(updatedTopics)
+      localStorage.setItem('recentTopics', JSON.stringify(updatedTopics))
+    }
     
     try {
       const res = await fetch('/api/generator/hooks', {
@@ -101,8 +191,13 @@ export default function GeneratorPage() {
       }
       
       const data = await res.json()
-      setHooks(data.hooks)
-      setEditedHooks(data.hooks)
+      // Convert hooks to the new format with selection state
+      const formattedHooks = data.hooks.map((h: string) => ({
+        text: h,
+        selected: true,
+        edited: h
+      }))
+      setHooks(formattedHooks)
       setShowHooksModal(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate hooks')
@@ -111,44 +206,286 @@ export default function GeneratorPage() {
     }
   }
 
+  const toggleHookSelection = (index: number) => {
+    const updated = [...hooks]
+    updated[index].selected = !updated[index].selected
+    setHooks(updated)
+  }
+
+  const updateHook = (index: number, text: string) => {
+    const updated = [...hooks]
+    updated[index].edited = text
+    setHooks(updated)
+  }
+
+  const selectAllHooks = (selected: boolean) => {
+    const updated = hooks.map(h => ({ ...h, selected }))
+    setHooks(updated)
+  }
+
   const approveHooks = async () => {
     try {
+      // Filter selected hooks
+      const selectedHooks = hooks
+        .filter(h => h.selected)
+        .map(h => h.edited || h.text)
+      
+      if (selectedHooks.length === 0) {
+        toast({
+          title: 'No hooks selected',
+          description: 'Please select at least one hook',
+          variant: 'destructive'
+        })
+        return
+      }
+
+      setLoading(true)
       const res = await fetch('/api/generator/csv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           config,
-          hooks: editedHooks
+          hooks: selectedHooks
         })
       })
       
+      if (!res.ok) {
+        throw new Error('Failed to generate content')
+      }
+      
       const data = await res.json()
-      setCsvResult(data.csv)
+      const csv = data.csv
+      
+      // Parse CSV into table data
+      const rows = csv.split('\n').filter((row: string) => row.trim())
+      const parsedData: TableRow[] = []
+      
+      // Skip header row
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i]
+        // Parse CSV row handling quoted values
+        const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)
+        if (matches && matches.length >= 6) {
+          const cleanedMatches = matches.map((field: string) => field.replace(/^"|"$/g, ''))
+          parsedData.push({
+            hook: cleanedMatches[0],
+            slides: cleanedMatches.slice(1, 6)
+          })
+        }
+      }
+      
+      setTableData(parsedData)
+      setCsvResult(csv)
       setShowHooksModal(false)
+      setShowTablePreview(true)
+      
       toast({
-        title: 'CSV Ready',
-        description: 'Your CSV has been generated successfully',
+        title: 'Content Generated',
+        description: 'Review and edit your slides before exporting',
       })
     } catch (err) {
-      setError('Failed to generate CSV')
+      setError('Failed to generate content')
+    } finally {
+      setLoading(false)
     }
   }
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(csvResult)
+    const csv = generateCSVFromTable()
+    navigator.clipboard.writeText(csv)
     toast({
       title: 'Copied',
       description: 'CSV copied to clipboard',
     })
   }
 
-  const availableCampaigns = config.brand ? options.campaigns[config.brand] || [] : []
+  const downloadCSV = () => {
+    const csv = generateCSVFromTable()
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `${config.client}_${config.campaign || 'slides'}_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+
+  const generateCSVFromTable = () => {
+    // Create CSV from table data
+    const header = 'Hook,Slide 1,Slide 2,Slide 3,Slide 4,Slide 5'
+    const rows = tableData.map(row => {
+      const escapedHook = row.hook.includes(',') || row.hook.includes('"') 
+        ? `"${row.hook.replace(/"/g, '""')}"` 
+        : row.hook
+      const escapedSlides = row.slides.map(slide => 
+        slide.includes(',') || slide.includes('"') 
+          ? `"${slide.replace(/"/g, '""')}"` 
+          : slide
+      )
+      return [escapedHook, ...escapedSlides].join(',')
+    })
+    
+    const csv = [header, ...rows].join('\n')
+    setCsvResult(csv)
+    return csv
+  }
+
+  const exportToExcel = () => {
+    // Create HTML table from table data
+    let html = '<html><head><meta charset="utf-8"></head><body><table border="1">'
+    
+    // Header row
+    html += '<tr>'
+    html += '<th style="background-color:#f0f0f0;font-weight:bold;padding:8px">Hook</th>'
+    for (let i = 1; i <= 5; i++) {
+      html += `<th style="background-color:#f0f0f0;font-weight:bold;padding:8px">Slide ${i}</th>`
+    }
+    html += '</tr>'
+    
+    // Data rows
+    tableData.forEach(row => {
+      html += '<tr>'
+      html += `<td style="padding:8px">${row.hook}</td>`
+      row.slides.forEach(slide => {
+        html += `<td style="padding:8px">${slide}</td>`
+      })
+      html += '</tr>'
+    })
+    
+    html += '</table></body></html>'
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `${config.client}_${config.campaign || 'slides'}_${new Date().toISOString().split('T')[0]}.xls`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const loadDebugCSV = async () => {
+    try {
+      const res = await fetch('/api/debug-csv')
+      if (!res.ok) throw new Error('Failed to load debug CSV')
+      
+      const data = await res.json()
+      const csv = data.csv
+      
+      // Parse the complex CSV structure
+      const rows = csv.split('\n').filter((row: string) => row.trim())
+      const parsedData: TableRow[] = []
+      
+      // Skip header row
+      for (let i = 1; i < rows.length && i <= 6; i++) { // Limit to first 5 rows for display
+        const row = rows[i]
+        // Parse CSV row handling quoted values
+        const columns = row.split(',').map((col: string) => col.trim())
+        
+        // Extract hook and slides from the complex structure
+        // Assuming: hook_top_text (col 2), slide2_top_text (col 5), slide3_top_text (col 8), slide4_top_text (col 11), slide5_top_text (col 14)
+        if (columns.length >= 15) {
+          parsedData.push({
+            hook: columns[2], // hook_top_text
+            slides: [
+              columns[2], // Slide 1 is same as hook
+              columns[5], // slide2_top_text
+              columns[8], // slide3_top_text
+              columns[11], // slide4_top_text
+              columns[14]  // slide5_top_text
+            ]
+          })
+        }
+      }
+      
+      setTableData(parsedData)
+      setShowTablePreview(true)
+      setCsvResult(csv)
+      
+      toast({
+        title: 'Debug CSV Loaded',
+        description: 'Showing first 5 rows from the example CSV',
+      })
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load debug CSV',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const availableCampaigns = config.client ? options.campaigns[config.client] || [] : []
+
+  const previewPromptChain = async () => {
+    if (!config.client || !config.blueprint || !config.topic) {
+      toast({
+        title: 'Missing Configuration',
+        description: 'Please fill in all required fields first',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/generator/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to generate preview')
+      }
+
+      const data = await res.json()
+      setDebugPromptChain(data)
+      setShowDebugPreview(true)
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to generate preview',
+        variant: 'destructive'
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="container max-w-6xl py-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Generate Copy</h1>
-        <p className="text-muted-foreground">Configure and generate TikTok-style copy</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Generate Copy</h1>
+          <p className="text-muted-foreground">Configure and generate TikTok-style copy</p>
+        </div>
+        <div className="flex items-center gap-4">
+          {/* Keyboard shortcuts help */}
+          <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground">
+            <kbd className="px-2 py-1 bg-muted rounded text-xs">⌘ Enter</kbd>
+            <span>Generate</span>
+            {debugMode && (
+              <>
+                <span className="mx-2">•</span>
+                <kbd className="px-2 py-1 bg-muted rounded text-xs">⌘ D</kbd>
+                <span>Preview</span>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="debug-mode" className="text-sm">Debug Mode</Label>
+            <Switch
+              id="debug-mode"
+              checked={debugMode}
+              onCheckedChange={setDebugMode}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Config Card */}
@@ -161,17 +498,20 @@ export default function GeneratorPage() {
             {/* Left Column */}
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="brand">Brand</Label>
+                <Label htmlFor="client">Client</Label>
                 <Select
-                  value={config.brand}
-                  onValueChange={(value) => setConfig({ ...config, brand: value, campaign: '' })}
+                  value={config.client}
+                  onValueChange={(value) => {
+                    const firstCampaign = options.campaigns[value]?.[0] || ''
+                    setConfig({ ...config, client: value, campaign: firstCampaign })
+                  }}
                 >
-                  <SelectTrigger id="brand">
-                    <SelectValue placeholder="Select brand" />
+                  <SelectTrigger id="client">
+                    <SelectValue placeholder="Select client" />
                   </SelectTrigger>
                   <SelectContent>
-                    {options.brands.map(brand => (
-                      <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                    {options.clients.map(client => (
+                      <SelectItem key={client} value={client}>{client}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -181,7 +521,32 @@ export default function GeneratorPage() {
                 <Label htmlFor="blueprint">Blueprint</Label>
                 <Select
                   value={config.blueprint}
-                  onValueChange={(value) => setConfig({ ...config, blueprint: value })}
+                  onValueChange={(value) => {
+                    // Smart defaults based on blueprint
+                    const updates: Partial<Config> = { blueprint: value }
+                    
+                    // Set smart defaults based on blueprint type
+                    if (value.toLowerCase().includes('story')) {
+                      updates.hookAppeal = 'drama'
+                      updates.charCap = 85
+                    } else if (value.toLowerCase().includes('fact') || value.toLowerCase().includes('list')) {
+                      updates.hookAppeal = 'curiosity'
+                      updates.charCap = 95
+                    } else if (value.toLowerCase().includes('meme') || value.toLowerCase().includes('joke')) {
+                      updates.hookAppeal = 'humor'
+                      updates.charCap = 70
+                      updates.addSelfAwareJoke = true
+                    } else if (value.toLowerCase().includes('contro')) {
+                      updates.hookAppeal = 'controversy'
+                      updates.charCap = 80
+                    }
+                    
+                    setConfig({ ...config, ...updates })
+                    toast({
+                      title: 'Blueprint Selected',
+                      description: `Applied smart defaults for ${value}`,
+                    })
+                  }}
                 >
                   <SelectTrigger id="blueprint">
                     <SelectValue placeholder="Select blueprint" />
@@ -212,6 +577,28 @@ export default function GeneratorPage() {
                 </Select>
               </div>
             </div>
+            
+            {/* Smart suggestion for mismatched settings */}
+            {config.blueprint && config.hookAppeal && (
+              (() => {
+                const blueprint = config.blueprint.toLowerCase()
+                const mismatch = 
+                  (blueprint.includes('story') && config.hookAppeal !== 'drama') ||
+                  (blueprint.includes('fact') && config.hookAppeal !== 'curiosity') ||
+                  (blueprint.includes('joke') && config.hookAppeal !== 'humor')
+                
+                return mismatch ? (
+                  <Alert className="mt-2">
+                    <AlertDescription className="text-xs">
+                      💡 Tip: {config.blueprint} blueprints typically work best with{' '}
+                      {blueprint.includes('story') ? 'Drama' :
+                       blueprint.includes('fact') ? 'Curiosity' :
+                       blueprint.includes('joke') ? 'Humor' : 'different'} hooks
+                    </AlertDescription>
+                  </Alert>
+                ) : null
+              })()
+            )}
 
             {/* Right Column */}
             <div className="space-y-4">
@@ -220,10 +607,10 @@ export default function GeneratorPage() {
                 <Select
                   value={config.campaign || 'none'}
                   onValueChange={(value) => setConfig({ ...config, campaign: value === 'none' ? '' : value })}
-                  disabled={!config.brand}
+                  disabled={!config.client}
                 >
                   <SelectTrigger id="campaign">
-                    <SelectValue placeholder="Select campaign" />
+                    <SelectValue placeholder={availableCampaigns.length ? "Select campaign" : "No campaigns available"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
@@ -235,12 +622,12 @@ export default function GeneratorPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="rows">Rows</Label>
+                <Label htmlFor="rows">Number of Hooks</Label>
                 <Input
                   id="rows"
                   type="number"
                   min={1}
-                  max={15}
+                  max={20}
                   value={config.rows}
                   onChange={(e) => setConfig({ ...config, rows: parseInt(e.target.value) || 1 })}
                 />
@@ -262,14 +649,59 @@ export default function GeneratorPage() {
 
           {/* Topic */}
           <div className="space-y-2">
-            <Label htmlFor="topic">Topic</Label>
-            <Textarea
-              id="topic"
-              placeholder="Enter your topic..."
-              value={config.topic}
-              onChange={(e) => setConfig({ ...config, topic: e.target.value })}
-              className="min-h-[100px]"
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="topic">Topic</Label>
+              <span className="text-sm text-muted-foreground">
+                {config.topic.length} / {config.charCap} characters
+                {config.topic.length > config.charCap && (
+                  <span className="text-destructive ml-2">(over limit)</span>
+                )}
+              </span>
+            </div>
+            <div className="relative">
+              <Textarea
+                id="topic"
+                placeholder="Enter your topic..."
+                value={config.topic}
+                onChange={(e) => setConfig({ ...config, topic: e.target.value })}
+                className={`min-h-[100px] ${config.topic.length > config.charCap ? 'border-destructive' : ''}`}
+              />
+              {recentTopics.length > 0 && !config.topic && (
+                <div className="absolute top-full mt-1 w-full bg-popover border rounded-md shadow-md z-10">
+                  <div className="p-2 text-xs text-muted-foreground">Recent topics:</div>
+                  {recentTopics.map((topic, idx) => (
+                    <button
+                      key={idx}
+                      className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
+                      onClick={() => setConfig({ ...config, topic })}
+                    >
+                      {topic}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {config.topic.length > 0 && (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Preview: "{config.topic.slice(0, config.charCap)}{config.topic.length > config.charCap ? '...' : ''}"
+                </p>
+                {config.topic.length > config.charCap && config.charCap < 120 && (
+                  <Alert className="mt-2">
+                    <AlertDescription className="text-xs flex items-center justify-between">
+                      <span>Your topic is getting cut off.</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setConfig({ ...config, charCap: Math.min(120, config.topic.length + 10) })}
+                      >
+                        Increase limit to {Math.min(120, config.topic.length + 10)}
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </>
+            )}
           </div>
 
           {/* Advanced Options */}
@@ -312,7 +744,7 @@ export default function GeneratorPage() {
                   <Label htmlFor="bottom-text">Generate Hooks with Bottom Text</Label>
                 </div>
 
-                {config.brand && (
+                {config.client && (
                   <div className="space-y-2">
                     <Label>Tone Strength: {config.toneStrength || 80}%</Label>
                     <Slider
@@ -342,11 +774,40 @@ export default function GeneratorPage() {
           </Accordion>
 
           {/* Actions */}
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            {config.addBottomText && (
+              <div className="text-sm text-muted-foreground mr-auto">
+                Hooks will include bottom text format
+              </div>
+            )}
+            {debugMode && (
+              <>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={loadDebugCSV}
+                >
+                  Load Example CSV
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={previewPromptChain}
+                  disabled={loading || !config.client || !config.blueprint || !config.topic}
+                  title="Preview prompt chain (⌘/Ctrl+D)"
+                  data-preview-button
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  Preview Prompt Chain
+                </Button>
+              </>
+            )}
             <Button
               size="lg"
               onClick={generateHooks}
-              disabled={loading || !config.brand || !config.blueprint || !config.topic}
+              disabled={loading || !config.client || !config.blueprint || !config.topic}
+              title="Generate hooks (⌘/Ctrl+Enter)"
+              data-generate-button
             >
               {loading ? (
                 <>
@@ -371,56 +832,212 @@ export default function GeneratorPage() {
         </Alert>
       )}
 
-      {/* CSV Result */}
-      {csvResult && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>CSV Output</CardTitle>
-            <Button size="sm" variant="outline" onClick={copyToClipboard}>
-              <Copy className="h-4 w-4 mr-2" />
-              Copy
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-              {csvResult}
-            </pre>
-          </CardContent>
-        </Card>
-      )}
+      {/* Table Preview Sheet */}
+      <Sheet open={showTablePreview} onOpenChange={setShowTablePreview}>
+        <SheetContent 
+          side="bottom" 
+          className="h-[85vh] p-0 flex flex-col"
+        >
+          <SheetHeader className="px-6 py-4 border-b">
+            <SheetTitle>Generated Content - Review & Edit</SheetTitle>
+            <SheetDescription>Edit any cell and your changes will be included in the export</SheetDescription>
+            <div className="flex items-center justify-between mt-4">
+              <div></div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={downloadCSV}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download CSV
+                </Button>
+                <Button size="sm" variant="outline" onClick={exportToExcel}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Export Excel
+                </Button>
+                <Button size="sm" variant="outline" onClick={copyToClipboard}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy CSV
+                </Button>
+              </div>
+            </div>
+          </SheetHeader>
+          <div className="flex-1 px-6 py-4" style={{ minHeight: 0 }}>
+            <ExcelTable 
+              data={tableData} 
+              onDataChange={setTableData}
+            />
+          </div>
+          <div className="px-6 py-3 border-t text-sm text-muted-foreground">
+            {tableData.length} slides generated. Edit any cell and your changes will be included in the export.
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Hooks Modal */}
       <Dialog open={showHooksModal} onOpenChange={setShowHooksModal}>
-        <DialogContent className="max-w-screen-lg h-[90vh] flex flex-col">
+        <DialogContent className="max-w-screen-xl h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="text-2xl">Review and Edit Generated Hooks</DialogTitle>
+            <DialogTitle className="text-2xl">Review and Select Hooks</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <p className="text-muted-foreground mb-4">
-              Review the generated hooks below. You can edit them directly before proceeding to generate the full CSV.
-            </p>
-            {editedHooks.map((hook, index) => (
-              <div key={index} className="space-y-2">
-                <Label className="text-sm font-medium">Hook {index + 1}</Label>
-                <Textarea
-                  value={hook}
-                  onChange={(e) => {
-                    const updated = [...editedHooks]
-                    updated[index] = e.target.value
-                    setEditedHooks(updated)
-                  }}
-                  className="min-h-[80px] resize-none"
-                  placeholder={`Enter hook ${index + 1}...`}
-                />
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-muted-foreground">
+                  Select the hooks you want to use. You can edit them before generating slides.
+                </p>
+                <div className="flex items-center gap-4">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => selectAllHooks(true)}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => selectAllHooks(false)}
+                  >
+                    Deselect All
+                  </Button>
+                </div>
               </div>
-            ))}
+              
+              <div className="space-y-4">
+                {hooks.map((hook, index) => (
+                  <div key={index} className="flex gap-4 p-4 border rounded-lg">
+                    <Checkbox
+                      checked={hook.selected}
+                      onCheckedChange={() => toggleHookSelection(index)}
+                      className="mt-2"
+                    />
+                    <div className="flex-1 space-y-2">
+                      <Label className="text-sm font-medium">
+                        Hook {index + 1}
+                        {config.addBottomText && hook.text.includes(' | ') && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            (with bottom text)
+                          </span>
+                        )}
+                      </Label>
+                      <Textarea
+                        value={hook.edited || hook.text}
+                        onChange={(e) => updateHook(index, e.target.value)}
+                        className="min-h-[80px] resize-none"
+                        placeholder={`Enter hook ${index + 1}...`}
+                        disabled={!hook.selected}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           <DialogFooter className="border-t pt-4">
-            <Button variant="outline" onClick={() => setShowHooksModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={approveHooks}>
-              Approve & Generate CSV
+            <div className="flex items-center justify-between w-full">
+              <div className="text-sm text-muted-foreground">
+                {hooks.filter(h => h.selected).length} of {hooks.length} hooks selected
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowHooksModal(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={approveHooks}
+                  disabled={hooks.filter(h => h.selected).length === 0 || loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating Slides...
+                    </>
+                  ) : (
+                    'Generate Slides for Selected Hooks'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Debug Preview Dialog */}
+      <Dialog open={showDebugPreview} onOpenChange={setShowDebugPreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Debug Preview - Prompt Chain</DialogTitle>
+          </DialogHeader>
+          {debugPromptChain && (
+            <div className="space-y-6">
+              {/* Configuration Summary */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-lg">Configuration</h3>
+                <div className="bg-muted p-4 rounded-lg space-y-1 text-sm">
+                  <div><span className="font-medium">Client:</span> {config.client}</div>
+                  {config.campaign && <div><span className="font-medium">Campaign:</span> {config.campaign}</div>}
+                  <div><span className="font-medium">Blueprint:</span> {config.blueprint}</div>
+                  <div><span className="font-medium">Hook Appeal:</span> {config.hookAppeal}</div>
+                  <div><span className="font-medium">Character Cap:</span> {config.charCap}</div>
+                  <div><span className="font-medium">Product Slide:</span> Slide {config.productSlide}</div>
+                  <div><span className="font-medium">Self-Aware Joke:</span> {config.addSelfAwareJoke ? 'Yes' : 'No'}</div>
+                  <div><span className="font-medium">Bottom Text:</span> {config.addBottomText ? 'Yes' : 'No'}</div>
+                  {config.toneStrength && <div><span className="font-medium">Tone Strength:</span> {config.toneStrength}%</div>}
+                  {config.rageBaitIntensity && <div><span className="font-medium">Rage Bait Intensity:</span> {config.rageBaitIntensity}%</div>}
+                </div>
+              </div>
+
+              {/* Client Prompt */}
+              {debugPromptChain.clientPrompt && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-lg">Client Prompt</h3>
+                  <div className="bg-muted p-4 rounded-lg">
+                    <pre className="whitespace-pre-wrap text-sm font-mono">{debugPromptChain.clientPrompt}</pre>
+                  </div>
+                </div>
+              )}
+
+              {/* Campaign Prompt */}
+              {debugPromptChain.campaignPrompt && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-lg">Campaign Prompt</h3>
+                  <div className="bg-muted p-4 rounded-lg">
+                    <pre className="whitespace-pre-wrap text-sm font-mono">{debugPromptChain.campaignPrompt}</pre>
+                  </div>
+                </div>
+              )}
+
+              {/* Blueprint */}
+              {debugPromptChain.blueprint && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-lg">Blueprint Structure</h3>
+                  <div className="bg-muted p-4 rounded-lg">
+                    <pre className="whitespace-pre-wrap text-sm font-mono">{debugPromptChain.blueprint}</pre>
+                  </div>
+                </div>
+              )}
+
+              {/* Full Prompt Chain */}
+              {debugPromptChain.fullPrompt && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-lg">Full Prompt Chain</h3>
+                  <div className="bg-muted p-4 rounded-lg">
+                    <pre className="whitespace-pre-wrap text-sm font-mono">{debugPromptChain.fullPrompt}</pre>
+                  </div>
+                </div>
+              )}
+
+              {/* Example Output */}
+              {debugPromptChain.exampleOutput && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-lg">Example Output Structure</h3>
+                  <div className="bg-muted p-4 rounded-lg">
+                    <pre className="whitespace-pre-wrap text-sm font-mono">{debugPromptChain.exampleOutput}</pre>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDebugPreview(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

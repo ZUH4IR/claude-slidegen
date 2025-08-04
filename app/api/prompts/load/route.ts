@@ -17,6 +17,14 @@ export async function GET(request: NextRequest) {
       )
     }
     
+    if (type === 'global') {
+      // Load global rules
+      const globalPath = path.join(process.cwd(), 'prompts', 'global', 'rules_v1.md')
+      const fileContent = await fs.readFile(globalPath, 'utf-8')
+      const { data: frontmatter, content } = matter(fileContent)
+      return NextResponse.json({ frontmatter, content })
+    }
+    
     const clientsDir = path.join(process.cwd(), 'prompts', 'clients', client)
     
     if (type === 'brand') {

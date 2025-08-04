@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-08-04T07:39:10.631Z",
+  "config": {
+    "brand": "vibit",
+    "campaign": "older",
+    "blueprint": "medical_betrayal",
+    "rows": 2,
+    "hookAppeal": "drama",
+    "charCap": 95,
+    "topic": "older audience",
+    "productSlide": 5,
+    "addSelfAwareJoke": false,
+    "addBottomText": false
+  },
+  "hooks": [
+    "\"my doctor said it was normal aging pain...until i found the x-ray from 6 years ago they ignored\"",
+    "\"i thought my feet were supposed to hurt at 65...until my neighbor showed me what her doctor found\""
+  ],
+  "csv": "Hook,Slide 1,Slide 2,Slide 3,Slide 4,Slide 5\nmy doctor said it was normal aging pain...until i found the x-ray from 6 years ago they ignored,\"3 doctors told me to accept the pain\n'you're not 20 anymore'\nbut something felt wrong\",\"i spent $2400 on special shoes\ndid all their exercises\ntook their supplements\",\"then i found my old x-ray\nsame exact issue was there\nthey never even looked\",\"turns out it wasn't aging at all\nit was treatable this whole time\nmy Vibit changed everything\",\"now i can garden for hours\nwalk with my grandkids\nand proved them all wrong\"\ni thought my feet were supposed to hurt at 65...until my neighbor showed me what her doctor found,\"'just part of getting older' they said\nwhile writing another prescription\ni almost believed them\",\"spent 2 years trying\ncompression socks\nstretches\neven gave up walking\",\"then my neighbor showed me her before/after\nsame symptoms\nbut she could walk again\",\"she introduced me to Vibit\nit wasn't age - it was pressure points\neverything changed in weeks\",\"now i'm back to traveling\ndancing at weddings\nliving the life they said was over\""
+}

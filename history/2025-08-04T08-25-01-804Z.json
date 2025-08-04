@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-08-04T08:25:01.804Z",
+  "config": {
+    "brand": "vibit",
+    "campaign": "older",
+    "blueprint": "medical_betrayal",
+    "rows": 5,
+    "hookAppeal": "drama",
+    "charCap": 95,
+    "topic": "ed",
+    "productSlide": 5,
+    "addSelfAwareJoke": false,
+    "addBottomText": false
+  },
+  "hooks": [
+    "my doctor said it was just stress until they found a tumor the size of a golf ball",
+    "they told me to lose weight for 6 years before finding the real issue hiding in my blood work",
+    "i trusted my doctor completely until i saw my chart notes. now i know why i almost died",
+    "\"you're too young to be this sick\" my doctor said. the specialist found stage 3 disease",
+    "went to 8 doctors before one actually ran the right test. turns out i was slowly dying"
+  ],
+  "csv": "Hook,Slide 1,Slide 2,Slide 3,Slide 4,Slide 5\n\"my doctor said it was just stress until they found a tumor the size of a golf ball\",\"kept telling me to meditate and do yoga for my headaches while the pain got worse\",\"spent $2000 on therapy sessions and relaxation apps thinking i was just anxious\",\"finally collapsed at work and the ER scan showed what was really happening\",\"turns out meditation doesn't shrink brain tumors who knew?\",\"Vibit helps track symptoms so doctors take you seriously from day 1\"\n\"they told me to lose weight for 6 years before finding the real issue hiding in my blood work\",\"every appointment was the same: step on the scale and get lectured about diet\",\"lost 50 pounds but still felt like i was dying. they said to lose more\",\"new doctor ran ONE blood test my old doc refused. autoimmune disease.\",\"6 years of suffering because they were too lazy to check my blood\",\"Vibit tracks the symptoms they ignore. download now to be your own advocate\"\n\"i trusted my doctor completely until i saw my chart notes. now i know why i almost died\",\"thought she was listening when i described my symptoms\",\"chart said 'patient seems anxious' and 'likely psychological'\",\"requested my records and saw 6 years of being labeled as dramatic\",\"they wrote off every symptom as anxiety. it was heart failure.\",\"Vibit helps you record appointments so they can't dismiss you again\"\n\"'you're too young to be this sick' my doctor said. the specialist found stage 3 disease\",\"told me to stop googling symptoms and trust the process\",\"prescribed antidepressants while the cancer spread\",\"pain got so bad i went to the ER. they found it immediately\",\"age doesn't make you immune to serious illness\",\"Vibit: because your age shouldn't determine your care. download now\"\n\"went to 8 doctors before one actually ran the right test. turns out i was slowly dying\",\"they all said my fatigue was depression or being a busy mom\",\"tried every antidepressant. got therapy. still got worse.\",\"9th doctor tested my bone marrow. rare blood disorder.\",\"8 doctors missed it because they assumed they knew better\",\"Vibit: get the tests you need the first time. link in bio\""
+}

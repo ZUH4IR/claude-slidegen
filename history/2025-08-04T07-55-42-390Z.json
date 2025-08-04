@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-08-04T07:55:42.390Z",
+  "config": {
+    "brand": "vibit",
+    "campaign": "older",
+    "blueprint": "medical_betrayal",
+    "rows": 2,
+    "hookAppeal": "drama",
+    "charCap": 95,
+    "topic": "ok",
+    "productSlide": 5,
+    "addSelfAwareJoke": false,
+    "addBottomText": false
+  },
+  "hooks": [
+    "\"my doctor said it was normal aging. until a podiatrist found 3 torn ligaments they missed for years\"",
+    "\"after 6 doctors dismissed my foot pain, i discovered what hospitals don't want seniors knowing\""
+  ],
+  "csv": "Hook,Slide 1,Slide 2,Slide 3,Slide 4,Slide 5\nmy doctor said it was normal aging. until a podiatrist found 3 torn ligaments they missed for years,\"just take tylenol and rest\" they said for 2 years while i could barely walk,\"i spent $2300 on useless treatments and even bought a cane to get around\",a new podiatrist did one simple scan. showed 3 completely torn ligaments in my foot,turns out there's a breakthrough device called Vibit that helps repair torn ligaments,now i can walk 3 miles daily. don't let them dismiss your pain as \"normal aging\"\nafter 6 doctors dismissed my foot pain i discovered what hospitals don't want seniors knowing,\"you're just getting older\" they said. while charging me $200 per visit,wasted 18 months on compression socks and endless ice packs,found out 80% of seniors get misdiagnosed foot conditions every year,the Vibit device showed me what real healing feels like in just 2 weeks,dancing with my grandkids again. don't accept pain as your new normal"
+}

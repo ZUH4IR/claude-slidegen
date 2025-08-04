@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-08-04T16:19:33.956Z",
+  "config": {
+    "brand": "vibit",
+    "campaign": "older",
+    "blueprint": "medical_betrayal",
+    "rows": 5,
+    "hookAppeal": "drama",
+    "charCap": 95,
+    "topic": "ok",
+    "productSlide": 5,
+    "addSelfAwareJoke": false,
+    "addBottomText": false
+  },
+  "hooks": [
+    "My doctor laughed when I mentioned foot pain at 60. Now I'm running marathons & he's asking MY secret",
+    "They said \"it's just age\" & sent me home. The real reason for my foot pain shocked even my surgeon",
+    "\"Just lose weight\" my doctor said. Turns out my feet were collapsing & had nothing to do with weight",
+    "3 specialists missed what was destroying my feet. A random Amazon review changed everything at 65",
+    "I almost cancelled my retirement cruise over foot pain until I found what podiatrists don't tell you"
+  ],
+  "csv": "Hook,Slide 1,Slide 2,Slide 3,Slide 4,Slide 5\n\"My doctor laughed when I mentioned foot pain at 60. Now I'm running marathons & he's asking MY secret\",\"For years I accepted that foot pain was 'part of aging' because my doctor said so\",\"Tried everything - special shoes expensive insoles even stopped my daily walks\",\"Then I learned about collapsed foot arches - the REAL cause doctors miss\",\"A foot specialist showed me how misaligned bones cause chronic pain\",\"Vibit realigned my feet & now I'm training for my first 5k at 63 🏃‍♀️\"\n\"They said 'it's just age' & sent me home. The real reason for my foot pain shocked even my surgeon\",\"'Take some Advil and rest' that's all my doctor would tell me at every visit\",\"Spent $2000+ on custom orthotics physical therapy and 'senior' shoes\",\"Discovered my arch wasn't 'old' - it was collapsing from lack of support\",\"My feet weren't getting the right support in critical pressure points\",\"Vibit changed everything - back to gardening & dancing pain-free\"\n\"'Just lose weight' my doctor said. Turns out my feet were collapsing & had nothing to do with weight\",\"The dismissal hurt more than my feet - being told it's all about weight\",\"Lost 30 pounds through diet & exercise but the foot pain got WORSE\",\"A podiatrist finally explained how arch support affects whole body alignment\",\"Weight wasn't the issue - my arches needed proper structural support\",\"Vibit restored my arch support & now I can walk for hours pain-free\"\n\"3 specialists missed what was destroying my feet. A random Amazon review changed everything at 65\",\"Every doctor had a different theory - arthritis gout even mental stress\",\"Wasted 2 years trying medications stretches and expensive treatments\",\"Found others my age getting relief from proper arch support solutions\",\"The missing piece was targeted pressure point technology\",\"Vibit gave me back my mobility - wish I'd found it years ago\"\n\"I almost cancelled my retirement cruise over foot pain until I found what podiatrists don't tell you\",\"Dreamed of exploring Europe but could barely walk to my mailbox\",\"Doctors kept saying 'it's normal at your age' but I refused to accept it\",\"Learned about how foot alignment affects entire body mechanics\",\"Traditional insoles weren't hitting the right support points\",\"Vibit saved my dream trip - walked 8 miles in Rome yesterday!\""
+}

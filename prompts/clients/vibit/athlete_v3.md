@@ -1,12 +1,11 @@
 ---
-version: 1
-status: archived
-audience: 25-45yo active individuals
+version: 3
+status: active
+audience: 25-45yo activ
 rage_bait_intensity: 70
-notes: focus on performance and injury prevention
+notes: ''
 ---
 
-# Vibit Athlete Campaign Rules
 
 ## Campaign-Specific Voice
 Competitive and performance-driven. Frustrated with temporary fixes.

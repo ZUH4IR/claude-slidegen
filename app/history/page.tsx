@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { History, Search, Download, Copy, Calendar, Hash } from 'lucide-react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { History, Search, Download, Copy, Calendar, Hash, FileSpreadsheet } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { ExcelTable } from '@/components/ExcelTable'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 
 interface HistoryEntry {
   id: string
@@ -29,6 +30,7 @@ export default function HistoryPage() {
   const [filteredEntries, setFilteredEntries] = useState<HistoryEntry[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null)
+  const [selectedTableData, setSelectedTableData] = useState<{ hook: string; slides: string[] }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -90,6 +92,69 @@ export default function HistoryPage() {
     return new Date(timestamp).toLocaleString()
   }
 
+  const parseCSVToTableData = (csv: string): { hook: string; slides: string[] }[] => {
+    const rows = csv.split('\n').filter(row => row.trim())
+    const parsedData: { hook: string; slides: string[] }[] = []
+    
+    // Skip header row
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i]
+      // Parse CSV row handling quoted values
+      const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)
+      if (matches && matches.length >= 6) {
+        const cleanedMatches = matches.map(field => field.replace(/^"|"$/g, ''))
+        parsedData.push({
+          hook: cleanedMatches[0],
+          slides: cleanedMatches.slice(1, 6)
+        })
+      }
+    }
+    
+    return parsedData
+  }
+
+  const handleEntryClick = (entry: HistoryEntry) => {
+    setSelectedEntry(entry)
+    const tableData = parseCSVToTableData(entry.csv)
+    setSelectedTableData(tableData)
+  }
+
+  const exportToExcel = (entry: HistoryEntry) => {
+    const tableData = parseCSVToTableData(entry.csv)
+    
+    let html = '<html><head><meta charset="utf-8"></head><body><table border="1">'
+    
+    // Header row
+    html += '<tr>'
+    html += '<th style="background-color:#f0f0f0;font-weight:bold;padding:8px">Hook</th>'
+    for (let i = 1; i <= 5; i++) {
+      html += `<th style="background-color:#f0f0f0;font-weight:bold;padding:8px">Slide ${i}</th>`
+    }
+    html += '</tr>'
+    
+    // Data rows
+    tableData.forEach(row => {
+      html += '<tr>'
+      html += `<td style="padding:8px">${row.hook}</td>`
+      row.slides.forEach(slide => {
+        html += `<td style="padding:8px">${slide}</td>`
+      })
+      html += '</tr>'
+    })
+    
+    html += '</table></body></html>'
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `${entry.config.brand}_${entry.timestamp.replace(/[:.]/g, '-')}.xls`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -138,7 +203,7 @@ export default function HistoryPage() {
                 <div
                   key={entry.id}
                   className="border rounded-lg p-4 hover:bg-accent cursor-pointer transition-colors"
-                  onClick={() => setSelectedEntry(entry)}
+                  onClick={() => handleEntryClick(entry)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="space-y-2">
@@ -191,66 +256,84 @@ export default function HistoryPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!selectedEntry} onOpenChange={() => setSelectedEntry(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Generation Details</DialogTitle>
-          </DialogHeader>
+      <Sheet open={!!selectedEntry} onOpenChange={(open) => !open && setSelectedEntry(null)}>
+        <SheetContent 
+          side="bottom" 
+          className="h-[85vh] p-0 flex flex-col"
+        >
+          <SheetHeader className="px-6 py-4 border-b">
+            <SheetTitle>Generation History</SheetTitle>
+            <SheetDescription>Review and export your previously generated content</SheetDescription>
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center gap-4">
+                {selectedEntry && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Badge>{selectedEntry.config.brand}</Badge>
+                    {selectedEntry.config.campaign && (
+                      <Badge variant="outline">{selectedEntry.config.campaign}</Badge>
+                    )}
+                    <span>•</span>
+                    <span>{formatDate(selectedEntry.timestamp)}</span>
+                  </div>
+                )}
+              </div>
+              {selectedEntry && (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => copyToClipboard(selectedEntry.csv)}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy CSV
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => downloadCSV(selectedEntry)}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download CSV
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => exportToExcel(selectedEntry)}
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Export Excel
+                  </Button>
+                </div>
+              )}
+            </div>
+          </SheetHeader>
           {selectedEntry && (
-            <div className="space-y-4 overflow-y-auto">
-              <div>
-                <h3 className="font-semibold mb-2">Configuration</h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>Brand: {selectedEntry.config.brand}</div>
-                  <div>Campaign: {selectedEntry.config.campaign || 'None'}</div>
-                  <div>Blueprint: {selectedEntry.config.blueprint}</div>
-                  <div>Rows: {selectedEntry.config.rows}</div>
-                </div>
-              </div>
-              
-              <div>
-                <h3 className="font-semibold mb-2">Topic</h3>
-                <p className="text-sm">{selectedEntry.config.topic}</p>
-              </div>
-
-              <div>
-                <h3 className="font-semibold mb-2">Generated Hooks</h3>
+            <div className="flex-1 px-6 py-4" style={{ minHeight: 0 }}>
+              <ExcelTable 
+                data={selectedTableData} 
+                onDataChange={setSelectedTableData}
+              />
+            </div>
+          )}
+          {selectedEntry && (
+            <div className="px-6 py-3 border-t bg-muted/50">
+              <div className="flex items-center justify-between text-sm">
                 <div className="space-y-1">
-                  {selectedEntry.hooks.map((hook, i) => (
-                    <div key={i} className="text-sm p-2 bg-muted rounded">
-                      {i + 1}. {hook}
-                    </div>
-                  ))}
+                  <div><span className="text-muted-foreground">Topic:</span> <span className="font-medium">{selectedEntry.config.topic}</span></div>
+                  <div className="flex gap-4">
+                    <span><span className="text-muted-foreground">Blueprint:</span> <span className="font-medium">{selectedEntry.config.blueprint}</span></span>
+                    <span><span className="text-muted-foreground">Rows:</span> <span className="font-medium">{selectedEntry.config.rows}</span></span>
+                    <span><span className="text-muted-foreground">Hooks:</span> <span className="font-medium">{selectedEntry.hooks.length}</span></span>
+                  </div>
                 </div>
-              </div>
-
-              <div>
-                <h3 className="font-semibold mb-2">CSV Output</h3>
-                <pre className="text-sm bg-muted p-4 rounded overflow-x-auto">
-                  {selectedEntry.csv}
-                </pre>
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => copyToClipboard(selectedEntry.csv)}
-                >
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy CSV
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => downloadCSV(selectedEntry)}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </Button>
+                <div className="text-muted-foreground">
+                  {selectedTableData.length} slides • Edit any cell and re-export
+                </div>
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

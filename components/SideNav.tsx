@@ -18,11 +18,6 @@ const navItems = [
     icon: FileEdit,
   },
   {
-    title: 'Global Rules',
-    href: '/global',
-    icon: Shield,
-  },
-  {
     title: 'History',
     href: '/history',
     icon: History,
