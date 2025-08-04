@@ -14,12 +14,18 @@ import { Plus, Save, FolderOpen, FileText, ChevronRight, Edit, RefreshCw, GitBra
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import matter from 'gray-matter'
+import { VariableLegend } from '@/components/VariableLegend'
+import { FolderTree } from '@/components/FolderTree'
+import { ColorCodedEditor } from '@/components/ColorCodedEditor'
+import { VersionDiff } from '@/components/VersionDiff'
 
 interface PromptVersion {
   version: number
   status: 'active' | 'archived'
   createdAt: string
-  content: string
+  modifiedAt?: string
+  content?: string
+  frontmatter?: any
 }
 
 interface ClientData {
@@ -32,7 +38,7 @@ interface FormField {
   key: string
   label: string
   value: string
-  type: 'text' | 'textarea'
+  type: 'text' | 'textarea' | 'number' | 'checkbox'
 }
 
 export default function PromptsPage() {
@@ -52,6 +58,7 @@ export default function PromptsPage() {
   const [versions, setVersions] = useState<any[]>([])
   const [currentVersion, setCurrentVersion] = useState(1)
   const [fullPromptChain, setFullPromptChain] = useState('')
+  const [selectedPath, setSelectedPath] = useState('')
   
   // Form fields
   const [clientName, setClientName] = useState('')
@@ -61,7 +68,7 @@ export default function PromptsPage() {
   const [dynamicFields, setDynamicFields] = useState<FormField[]>([])
   
   // Standard fields
-  const [brandVoice, setBrandVoice] = useState('')
+  const [clientVoice, setClientVoice] = useState('')
   const [imageBuckets, setImageBuckets] = useState('')
   const [toneStrength, setToneStrength] = useState('80')
   const [ctaVariant, setCtaVariant] = useState('soft')
@@ -76,20 +83,56 @@ export default function PromptsPage() {
   // Preview variables
   const [previewVariables, setPreviewVariables] = useState({
     product_slide: '5',
-    brand_name: selectedClient || 'brand',
+    client_name: selectedClient || 'client',
     campaign_name: campaignName || 'campaign'
   })
+  
+  // Available variables for color coding
+  const [availableVariables, setAvailableVariables] = useState<Array<{key: string, scope: 'global' | 'client' | 'campaign'}>>([])
 
   useEffect(() => {
     loadClients()
   }, [])
+  
+  // Load available variables for color coding
+  useEffect(() => {
+    if (!selectedClient && !isGlobalRules) {
+      setAvailableVariables([])
+      return
+    }
+    
+    const loadVariables = async () => {
+      try {
+        const params = new URLSearchParams({ client: selectedClient || 'global' })
+        if (campaignName && !isNewClient) {
+          params.append('campaign', campaignName)
+        }
+        
+        const res = await fetch(`/api/legend?${params}`)
+        const data = await res.json()
+        
+        if (data.variables) {
+          setAvailableVariables(
+            data.variables.map((v: any) => ({
+              key: v.key,
+              scope: v.scope
+            }))
+          )
+        }
+      } catch (err) {
+        console.error('Failed to load variables:', err)
+      }
+    }
+    
+    loadVariables()
+  }, [selectedClient, campaignName, isGlobalRules, isNewClient])
 
   // Sync form fields with raw prompt
   useEffect(() => {
     if (viewMode === 'form') {
       updateRawFromForm()
     }
-  }, [brandVoice, integrationRule, imageBuckets, toneStrength, ctaVariant, bannedWords, audience, rageBaitIntensity, campaignNotes, dynamicFields])
+  }, [clientVoice, integrationRule, imageBuckets, toneStrength, ctaVariant, bannedWords, audience, rageBaitIntensity, campaignNotes, dynamicFields])
 
   const updateRawFromForm = () => {
     if (isGlobalRules) {
@@ -111,7 +154,7 @@ export default function PromptsPage() {
         banned_words: bannedWords.split(',').map(w => w.trim()).filter(Boolean)
       }
       
-      let content = `voice: ${brandVoice}\nintegration_rule: ${integrationRule}`
+      let content = `voice: ${clientVoice}\nintegration_rule: ${integrationRule}`
       
       // Add dynamic fields
       dynamicFields.forEach(field => {
@@ -179,7 +222,7 @@ export default function PromptsPage() {
           }
           contentBuffer = []
         } else if (line.startsWith('voice: ') && !currentSection) {
-          setBrandVoice(line.substring(7))
+          setClientVoice(line.substring(7))
         } else if (line.startsWith('integration_rule: ') && !currentSection) {
           setIntegrationRule(line.substring(17))
         } else if (currentSection) {
@@ -199,16 +242,49 @@ export default function PromptsPage() {
         sections.push(currentSection as FormField)
       }
       
-      setDynamicFields(sections)
-      
       // Update standard fields from frontmatter
       const frontmatter = fm as any
-      if (frontmatter.image_buckets) setImageBuckets(frontmatter.image_buckets)
+      if (frontmatter.image_buckets) {
+        setImageBuckets(typeof frontmatter.image_buckets === 'object' ? 
+          Object.entries(frontmatter.image_buckets).map(([k, v]) => `${k}: ${v}`).join('\n') : 
+          frontmatter.image_buckets)
+      }
+      if (frontmatter.client_voice) setClientVoice(frontmatter.client_voice)
+      if (frontmatter.integration_rule) setIntegrationRule(frontmatter.integration_rule)
       if (frontmatter.tone_strength) setToneStrength(frontmatter.tone_strength.toString())
       if (frontmatter.cta_variant) setCtaVariant(frontmatter.cta_variant)
-      if (frontmatter.banned_words) setBannedWords(frontmatter.banned_words.join(', '))
+      if (frontmatter.banned_words) setBannedWords(Array.isArray(frontmatter.banned_words) ? frontmatter.banned_words.join(', ') : frontmatter.banned_words)
       if (frontmatter.audience) setAudience(frontmatter.audience)
-      if (frontmatter.rage_bait_intensity) setRageBaitIntensity(frontmatter.rage_bait_intensity.toString())
+      if (frontmatter.ragebait_intensity || frontmatter.rage_bait_intensity) {
+        setRageBaitIntensity((frontmatter.ragebait_intensity || frontmatter.rage_bait_intensity).toString())
+      }
+      if (frontmatter.campaign_notes) setCampaignNotes(frontmatter.campaign_notes)
+      
+      // Generate form fields for any non-standard frontmatter keys
+      const standardKeys = ['version', 'status', 'description', 'client_voice', 'integration_rule', 
+                           'image_buckets', 'tone_strength', 'cta_variant', 'banned_words', 
+                           'audience', 'ragebait_intensity', 'rage_bait_intensity', 'campaign_notes']
+      
+      const generatedFields: FormField[] = []
+      Object.entries(frontmatter).forEach(([key, value]) => {
+        if (!standardKeys.includes(key)) {
+          // Create dynamic field for custom frontmatter key
+          const fieldType = typeof value === 'boolean' ? 'checkbox' : 
+                           (typeof value === 'number' ? 'number' : 
+                           (Array.isArray(value) || typeof value === 'object' ? 'textarea' : 'text'))
+          
+          generatedFields.push({
+            key: `fm_${key}`,
+            label: key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+            value: Array.isArray(value) ? value.join(', ') : 
+                   (typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)),
+            type: fieldType as 'text' | 'textarea' | 'number' | 'checkbox'
+          })
+        }
+      })
+      
+      // Combine generated fields with parsed sections
+      setDynamicFields([...generatedFields, ...sections])
       if (frontmatter.version) setCurrentVersion(frontmatter.version)
     } catch (err) {
       console.error('Error parsing raw prompt:', err)
@@ -244,6 +320,7 @@ export default function PromptsPage() {
       setIsGlobalRules(true)
       setIsNewClient(false)
       setIsNewCampaign(false)
+      setSelectedPath('global/rules')
       
       // Set raw prompt
       setRawPrompt(data.content)
@@ -257,7 +334,7 @@ export default function PromptsPage() {
 
   const handleEditClient = async (clientName: string) => {
     try {
-      const res = await fetch(`/api/prompts/load?type=brand&client=${clientName}`)
+      const res = await fetch(`/api/prompts/load?type=client&client=${clientName}`)
       const data = await res.json()
       
       setSelectedClient(clientName)
@@ -266,6 +343,7 @@ export default function PromptsPage() {
       setIsNewCampaign(false)
       setIsGlobalRules(false)
       setClientName(clientName)
+      setSelectedPath(`clients/${clientName}/_client`)
       
       // Set raw prompt
       setRawPrompt(matter.stringify(data.content, data.frontmatter))
@@ -289,6 +367,7 @@ export default function PromptsPage() {
       setIsNewCampaign(true)
       setIsGlobalRules(false)
       setCampaignName(campaignName)
+      setSelectedPath(`clients/${clientName}/${campaignName}`)
       
       // Set raw prompt
       setRawPrompt(matter.stringify(data.content, data.frontmatter))
@@ -336,13 +415,31 @@ export default function PromptsPage() {
     try {
       const params = new URLSearchParams({
         client: selectedClient,
-        type: isNewClient ? 'brand' : 'campaign',
+        type: isNewClient ? 'client' : 'campaign',
         ...(isNewCampaign && { campaign: campaignName })
       })
       
       const res = await fetch(`/api/prompts/versions?${params}`)
       const data = await res.json()
-      setVersions(data.versions || [])
+      
+      // Load content for each version for diff view
+      const versionsWithContent = await Promise.all(
+        (data.versions || []).map(async (v: any) => {
+          try {
+            const contentRes = await fetch(`/api/prompts/load?type=${isNewCampaign ? 'campaign' : 'client'}&client=${selectedClient}&campaign=${campaignName}&version=${v.version}`)
+            const contentData = await contentRes.json()
+            return {
+              ...v,
+              content: contentData.content || '',
+              frontmatter: contentData.frontmatter || {}
+            }
+          } catch {
+            return v
+          }
+        })
+      )
+      
+      setVersions(versionsWithContent)
     } catch (err) {
       console.error('Failed to load versions:', err)
     }
@@ -352,9 +449,9 @@ export default function PromptsPage() {
     try {
       const fileName = isNewCampaign 
         ? `${campaignName}_v${version}.md`
-        : `_brand_v${version}.md`
+        : `_client_v${version}.md`
       
-      const res = await fetch(`/api/prompts/load?type=${isNewCampaign ? 'campaign' : 'brand'}&client=${selectedClient}&campaign=${campaignName}&version=${version}`)
+      const res = await fetch(`/api/prompts/load?type=${isNewCampaign ? 'campaign' : 'client'}&client=${selectedClient}&campaign=${campaignName}&version=${version}`)
       const data = await res.json()
       
       setRawPrompt(matter.stringify(data.content, data.frontmatter))
@@ -381,7 +478,7 @@ export default function PromptsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           client: selectedClient,
-          type: isNewClient ? 'brand' : 'campaign',
+          type: isNewClient ? 'client' : 'campaign',
           campaign: isNewCampaign ? campaignName : undefined,
           version,
           action: 'activate'
@@ -418,15 +515,15 @@ export default function PromptsPage() {
         console.log('No global rules found')
       }
       
-      // Load brand prompt
+      // Load client prompt
       if (selectedClient) {
         try {
-          const brandRes = await fetch(`/api/prompts/load?type=brand&client=${selectedClient}`)
-          const brandData = await brandRes.json()
-          fullChain += `## Brand: ${selectedClient}\n\n`
-          fullChain += brandData.content + '\n\n'
+          const clientRes = await fetch(`/api/prompts/load?type=client&client=${selectedClient}`)
+          const clientData = await clientRes.json()
+          fullChain += `## Client: ${selectedClient}\n\n`
+          fullChain += clientData.content + '\n\n'
         } catch (err) {
-          console.log('No brand prompt found')
+          console.log('No client prompt found')
         }
       }
       
@@ -474,7 +571,69 @@ export default function PromptsPage() {
         return
       }
 
-      const { data: fm, content } = matter(rawPrompt)
+      let fm: any = {}
+      let content = rawPrompt
+      
+      if (viewMode === 'form') {
+        // Build frontmatter from form fields
+        fm = { ...frontmatter }
+        
+        // Add standard fields
+        if (isNewClient) {
+          if (clientVoice) fm.client_voice = clientVoice
+          if (integrationRule) fm.integration_rule = integrationRule
+          if (imageBuckets) {
+            const buckets: any = {}
+            imageBuckets.split('\n').forEach(line => {
+              const [key, value] = line.split(':').map(s => s.trim())
+              if (key && value) buckets[key] = value
+            })
+            if (Object.keys(buckets).length > 0) fm.image_buckets = buckets
+          }
+          if (toneStrength !== '80') fm.tone_strength = parseInt(toneStrength)
+          if (ctaVariant !== 'soft') fm.cta_variant = ctaVariant
+          if (bannedWords) fm.banned_words = bannedWords.split(',').map(s => s.trim()).filter(Boolean)
+        }
+        
+        if (isNewCampaign) {
+          if (audience) fm.audience = audience
+          if (rageBaitIntensity !== '50') fm.ragebait_intensity = parseInt(rageBaitIntensity)
+          if (campaignNotes) fm.campaign_notes = campaignNotes
+        }
+        
+        // Add custom frontmatter fields
+        dynamicFields.forEach(field => {
+          if (field.key.startsWith('fm_')) {
+            const key = field.key.substring(3)
+            let value: any = field.value
+            
+            // Convert value based on type
+            if (field.type === 'checkbox') {
+              value = field.value === 'true'
+            } else if (field.type === 'number') {
+              value = parseFloat(field.value) || 0
+            } else if (field.type === 'textarea' && field.value.includes(',')) {
+              // Try to parse as array
+              const parts = field.value.split(',').map(s => s.trim()).filter(Boolean)
+              if (parts.length > 1) value = parts
+            }
+            
+            fm[key] = value
+          }
+        })
+        
+        // Build content from sections
+        const sections = dynamicFields.filter(f => f.key.startsWith('section_'))
+        content = sections.map(section => `## ${section.label}\n\n${section.value}`).join('\n\n')
+        
+        // Build the full raw prompt
+        setRawPrompt(matter.stringify(content, fm))
+      } else {
+        // In raw mode, parse the existing frontmatter
+        const parsed = matter(rawPrompt)
+        fm = parsed.data
+        content = parsed.content
+      }
       
       // Determine next version number
       let nextVersion = 1
@@ -482,7 +641,7 @@ export default function PromptsPage() {
         // Get current versions to find the highest
         const params = new URLSearchParams({
           client: selectedClient,
-          type: isNewClient ? 'brand' : 'campaign',
+          type: isNewClient ? 'client' : 'campaign',
           ...(isNewCampaign && { campaign: campaignName })
         })
         
@@ -500,7 +659,7 @@ export default function PromptsPage() {
       
       const fileName = isNewCampaign 
         ? `${selectedClient}/${campaignName}_v${nextVersion}.md`
-        : `${selectedClient}/_brand_v${nextVersion}.md`
+        : `${selectedClient}/_client_v${nextVersion}.md`
 
       await fetch('/api/prompts/save-structured', {
         method: 'POST',
@@ -514,7 +673,7 @@ export default function PromptsPage() {
 
       toast({
         title: 'Saved',
-        description: `${isNewCampaign ? 'Campaign' : 'Brand'} prompt saved as version ${nextVersion}`
+        description: `${isNewCampaign ? 'Campaign' : 'Client'} prompt saved as version ${nextVersion}`
       })
 
       setCurrentVersion(nextVersion)
@@ -558,7 +717,7 @@ export default function PromptsPage() {
     setSelectedType('new')
     setClientName('')
     setCampaignName('')
-    setBrandVoice('')
+    setClientVoice('')
     setImageBuckets('')
     setToneStrength('80')
     setCtaVariant('soft')
@@ -569,6 +728,107 @@ export default function PromptsPage() {
     setCampaignNotes('')
     setRawPrompt('')
     setDynamicFields([])
+  }
+
+  const handleNewVersion = async () => {
+    try {
+      const { data: fm, content } = matter(rawPrompt)
+      
+      // Determine next version number
+      const nextVersion = currentVersion + 1
+      
+      // Update frontmatter
+      fm.version = nextVersion
+      fm.status = 'active'
+      
+      // Save as new version
+      const res = await fetch('/api/prompts/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client: selectedClient,
+          campaign: isNewCampaign ? campaignName : undefined,
+          version: nextVersion,
+          content: matter.stringify(content, fm)
+        })
+      })
+      
+      if (!res.ok) throw new Error('Failed to create new version')
+      
+      toast({
+        title: 'New Version Created',
+        description: `Version ${nextVersion} is now active`
+      })
+      
+      setCurrentVersion(nextVersion)
+      loadVersions()
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to create new version',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const handleDiff = async (compareVersion: number) => {
+    if (compareVersion < 1) return
+    
+    try {
+      const res = await fetch(`/api/prompts/diff?client=${selectedClient}&campaign=${campaignName || ''}&v1=${compareVersion}&v2=${currentVersion}`)
+      const data = await res.json()
+      
+      // Show diff in a dialog
+      // For now, just show a toast
+      toast({
+        title: 'Diff View',
+        description: `Comparing v${compareVersion} to v${currentVersion}`
+      })
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load diff',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const runLinter = () => {
+    const issues: string[] = []
+    
+    // Check character caps
+    const lines = rawPrompt.split('\n')
+    lines.forEach((line, idx) => {
+      if (line.length > 120 && !line.startsWith('#')) {
+        issues.push(`Line ${idx + 1}: Exceeds 120 characters`)
+      }
+    })
+    
+    // Check for missing hashtags
+    if (!rawPrompt.includes('#')) {
+      issues.push('Missing section headers (use # or ##)')
+    }
+    
+    // Check for banned words
+    const bannedList = bannedWords.split(',').map(w => w.trim()).filter(Boolean)
+    bannedList.forEach(word => {
+      if (rawPrompt.toLowerCase().includes(word.toLowerCase())) {
+        issues.push(`Contains banned word: "${word}"`)
+      }
+    })
+    
+    if (issues.length === 0) {
+      toast({
+        title: 'Linter Results',
+        description: 'No issues found!'
+      })
+    } else {
+      toast({
+        title: 'Linter Results',
+        description: `Found ${issues.length} issues`,
+        variant: 'destructive'
+      })
+    }
   }
 
   // Generate preview with variables replaced
@@ -592,125 +852,28 @@ export default function PromptsPage() {
     <div className="flex h-full">
       {/* Sidebar */}
       <div className="w-80 border-r bg-muted/10 overflow-y-auto">
-        <div className="p-4 space-y-6">
-          {/* Global Section */}
-          <div>
-            <h2 className="text-lg font-semibold mb-4">Global</h2>
-            <div className="space-y-2">
-              <div 
-                className="border rounded-lg bg-background p-3 cursor-pointer hover:bg-accent flex items-center justify-between"
-                onClick={handleEditGlobalRules}
-              >
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  <span className="font-medium">Global Rules</span>
-                </div>
-                <Button size="sm" variant="ghost">
-                  <Edit className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Clients Section */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Clients</h2>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    resetForm()
-                    setIsNewClient(true)
-                  }}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  New
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={loadClients}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              {clients.map(client => (
-              <div key={client.name} className="border rounded-lg bg-background">
-                <div
-                  className="flex items-center justify-between p-3 cursor-pointer hover:bg-accent"
-                  onClick={() => toggleClient(client.name)}
-                >
-                  <div className="flex items-center gap-2">
-                    <ChevronRight 
-                      className={cn(
-                        "h-4 w-4 transition-transform",
-                        expandedClients.has(client.name) && "rotate-90"
-                      )}
-                    />
-                    <FolderOpen className="h-4 w-4" />
-                    <span className="font-medium">{client.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      v{client.activeVersion || 1}
-                    </Badge>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleEditClient(client.name)
-                      }}
-                    >
-                      <Edit className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-                
-                {expandedClients.has(client.name) && (
-                  <div className="px-3 pb-3">
-                    <div className="ml-6 space-y-1">
-                      {client.campaigns.map(campaign => (
-                        <div 
-                          key={campaign}
-                          className="flex items-center justify-between p-2 hover:bg-accent rounded cursor-pointer"
-                          onClick={() => handleEditCampaign(client.name, campaign)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-3 w-3" />
-                            <span className="text-sm">{campaign}</span>
-                          </div>
-                          <Button size="sm" variant="ghost">
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full mt-2"
-                        onClick={() => {
-                          resetForm()
-                          setSelectedClient(client.name)
-                          setIsNewCampaign(true)
-                        }}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add Campaign
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-            </div>
-          </div>
-        </div>
+        <FolderTree
+          selectedPath={selectedPath}
+          onSelect={(path, type, metadata) => {
+            if (type === 'global') {
+              handleEditGlobalRules()
+            } else if (type === 'client' && metadata?.clientName) {
+              handleEditClient(metadata.clientName)
+            } else if (type === 'campaign' && metadata?.clientName && metadata?.campaignName) {
+              handleEditCampaign(metadata.clientName, metadata.campaignName)
+            }
+          }}
+          onNewClient={() => {
+            resetForm()
+            setIsNewClient(true)
+          }}
+          onNewCampaign={(clientName) => {
+            resetForm()
+            setSelectedClient(clientName)
+            setIsNewCampaign(true)
+          }}
+          onRefresh={loadClients}
+        />
       </div>
 
       {/* Main Content */}
@@ -719,7 +882,7 @@ export default function PromptsPage() {
           <div>
             <h1 className="text-3xl font-bold">Prompt Management</h1>
             <p className="text-muted-foreground">
-              Create and manage brand voices and campaign prompts
+              Create and manage client voices and campaign prompts
             </p>
           </div>
 
@@ -731,14 +894,14 @@ export default function PromptsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle>
-                        {selectedType === 'edit' ? 'Edit' : 'Create New'} {isGlobalRules ? 'Global Rules' : isNewClient ? 'Client/Brand' : 'Campaign'}
+                        {selectedType === 'edit' ? 'Edit' : 'Create New'} {isGlobalRules ? 'Global Rules' : isNewClient ? 'Client/Client' : 'Campaign'}
                       </CardTitle>
                       <CardDescription>
                         {isGlobalRules 
                           ? 'Editing: prompts/global/rules_v1.md'
                           : selectedType === 'edit' 
-                          ? `Editing: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_brand' : campaignName}_v${currentVersion}.md`
-                          : `Creating: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_brand' : campaignName}_v1.md`}
+                          ? `Editing: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_client' : campaignName}_v${currentVersion}.md`
+                          : `Creating: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_client' : campaignName}_v1.md`}
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
@@ -760,6 +923,37 @@ export default function PromptsPage() {
                           </SelectContent>
                         </Select>
                       )}
+                      {/* Quick Actions Toolbar */}
+                      <div className="flex items-center gap-1 border-r pr-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleNewVersion}
+                          title="New version (↗)"
+                          className="h-8 w-8 p-0"
+                        >
+                          <span className="text-lg">↗</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDiff(currentVersion - 1)}
+                          disabled={currentVersion <= 1}
+                          title="Diff against v-1 (Δ)"
+                          className="h-8 w-8 p-0"
+                        >
+                          <span className="text-lg">Δ</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={runLinter}
+                          title="Linter (⚠)"
+                          className="h-8 w-8 p-0"
+                        >
+                          <span className="text-lg">⚠</span>
+                        </Button>
+                      </div>
                       <Button size="sm" variant="outline" onClick={() => {
                         setShowVersionHistory(true)
                         loadVersions()
@@ -811,12 +1005,12 @@ export default function PromptsPage() {
                           </div>
 
                           <div>
-                            <Label htmlFor="brand-voice">Brand Voice</Label>
+                            <Label htmlFor="client-voice">Client Voice</Label>
                             <Textarea
-                              id="brand-voice"
+                              id="client-voice"
                               placeholder="e.g., playful health advocate"
-                              value={brandVoice}
-                              onChange={(e) => setBrandVoice(e.target.value)}
+                              value={clientVoice}
+                              onChange={(e) => setClientVoice(e.target.value)}
                               rows={2}
                             />
                           </div>
@@ -949,12 +1143,16 @@ export default function PromptsPage() {
                         {dynamicFields.map(field => (
                           <div key={field.key} className="space-y-2 p-4 border rounded-lg">
                             <div className="flex items-center justify-between">
-                              <Input
-                                value={field.label}
-                                onChange={(e) => updateDynamicField(field.key, { label: e.target.value })}
-                                placeholder="Section Title"
-                                className="font-medium"
-                              />
+                              <Label className="font-medium">
+                                {field.key.startsWith('fm_') ? field.label : (
+                                  <Input
+                                    value={field.label}
+                                    onChange={(e) => updateDynamicField(field.key, { label: e.target.value })}
+                                    placeholder="Section Title"
+                                    className="font-medium"
+                                  />
+                                )}
+                              </Label>
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -963,26 +1161,55 @@ export default function PromptsPage() {
                                 ×
                               </Button>
                             </div>
-                            <Textarea
-                              value={field.value}
-                              onChange={(e) => updateDynamicField(field.key, { value: e.target.value })}
-                              placeholder="Section content..."
-                              rows={3}
-                            />
+                            {field.type === 'textarea' ? (
+                              <Textarea
+                                value={field.value}
+                                onChange={(e) => updateDynamicField(field.key, { value: e.target.value })}
+                                placeholder={field.key.startsWith('fm_') ? `Enter ${field.label.toLowerCase()}...` : "Section content..."}
+                                rows={3}
+                              />
+                            ) : field.type === 'checkbox' ? (
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={field.value === 'true'}
+                                  onChange={(e) => updateDynamicField(field.key, { value: e.target.checked.toString() })}
+                                  className="rounded border-gray-300"
+                                />
+                                <span className="text-sm text-muted-foreground">Enable {field.label}</span>
+                              </div>
+                            ) : field.type === 'number' ? (
+                              <Input
+                                type="number"
+                                value={field.value}
+                                onChange={(e) => updateDynamicField(field.key, { value: e.target.value })}
+                                placeholder={`Enter ${field.label.toLowerCase()}...`}
+                              />
+                            ) : (
+                              <Input
+                                type="text"
+                                value={field.value}
+                                onChange={(e) => updateDynamicField(field.key, { value: e.target.value })}
+                                placeholder={`Enter ${field.label.toLowerCase()}...`}
+                              />
+                            )}
                           </div>
                         ))}
                       </div>
                     </div>
                   ) : (
                     <div className="h-full">
-                      <Textarea
+                      <ColorCodedEditor
                         value={rawPrompt}
-                        onChange={(e) => {
-                          setRawPrompt(e.target.value)
-                          parseRawPrompt(e.target.value)
+                        onChange={(value) => {
+                          setRawPrompt(value)
+                          parseRawPrompt(value)
                         }}
+                        variables={availableVariables}
+                        maxLineLength={120}
+                        bannedWords={bannedWords.split(',').map(s => s.trim()).filter(Boolean)}
                         className={cn(
-                          "font-mono text-sm resize-none",
+                          "resize-none",
                           isNewCampaign ? "min-h-[900px]" : "min-h-[600px]"
                         )}
                         placeholder="Enter raw prompt with frontmatter..."
@@ -997,7 +1224,7 @@ export default function PromptsPage() {
                     onClick={handleSave} 
                     className="w-full mt-4"
                     disabled={
-                      isGlobalRules ? false : isNewClient ? (!clientName || !brandVoice) : (!selectedClient || !campaignName)
+                      isGlobalRules ? false : isNewClient ? (!clientName || !clientVoice) : (!selectedClient || !campaignName)
                     }
                   >
                     <Save className="h-4 w-4 mr-2" />
@@ -1005,6 +1232,35 @@ export default function PromptsPage() {
                   </Button>
                 </CardContent>
               </Card>
+
+
+              {/* Variable Legend */}
+              {(selectedClient || isGlobalRules) && (
+                <VariableLegend 
+                  client={selectedClient || 'global'}
+                  campaign={!isNewClient && campaignName ? campaignName : undefined}
+                  onVariableClick={(varName) => {
+                    // Jump to first occurrence in editor
+                    if (viewMode === 'raw') {
+                      // Find the textarea inside ColorCodedEditor
+                      const textarea = document.querySelector('.relative textarea') as HTMLTextAreaElement
+                      if (textarea) {
+                        const text = textarea.value
+                        const varPattern = new RegExp(`{{\\s*${varName}\\s*}}`, 'i')
+                        const match = text.match(varPattern)
+                        if (match && match.index !== undefined) {
+                          textarea.focus()
+                          textarea.setSelectionRange(match.index, match.index + match[0].length)
+                          // Scroll to selection
+                          const lineHeight = parseInt(window.getComputedStyle(textarea).lineHeight)
+                          const lines = text.substring(0, match.index).split('\n').length
+                          textarea.scrollTop = (lines - 5) * lineHeight
+                        }
+                      }
+                    }
+                  }}
+                />
+              )}
 
               {/* Preview Section */}
               <Card>
@@ -1045,53 +1301,29 @@ export default function PromptsPage() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">Rendered Preview</Label>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => copyToClipboard(previewContent)}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setShowFullChain(!showFullChain)
+                              if (!showFullChain) loadFullPromptChain()
+                            }}
+                          >
+                            <Link className="h-3 w-3 mr-1" />
+                            {showFullChain ? 'Hide' : 'Show'} Full Chain
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyToClipboard(previewContent)}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                       <div className="p-4 bg-muted rounded-lg max-h-[400px] overflow-y-auto">
-                        <pre className="text-xs whitespace-pre-wrap">{previewContent}</pre>
-                      </div>
-                    </div>
-                  </CardContent>
-                )}
-              </Card>
-
-              {/* Full Chain Section */}
-              <Card>
-                <CardHeader>
-                  <Button
-                    variant="ghost"
-                    className="flex items-center justify-between w-full p-0"
-                    onClick={() => setShowFullChain(!showFullChain)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <CardTitle>Full Prompt Chain</CardTitle>
-                      <CardDescription>Complete prompt chain including global rules, brand, and campaign</CardDescription>
-                    </div>
-                    {showFullChain ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                </CardHeader>
-                {showFullChain && (
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm">Full Chain</Label>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => copyToClipboard(fullPromptChain)}
-                        >
-                          <Copy className="h-3 w-3" />
-                          Copy Full Chain
-                        </Button>
-                      </div>
-                      <div className="p-4 bg-muted rounded-lg max-h-[400px] overflow-y-auto">
-                        <pre className="text-xs whitespace-pre-wrap">{fullPromptChain}</pre>
+                        <pre className="text-xs whitespace-pre-wrap">{showFullChain ? fullPromptChain : previewContent}</pre>
                       </div>
                     </div>
                   </CardContent>
@@ -1112,60 +1344,85 @@ export default function PromptsPage() {
 
       {/* Version History Dialog */}
       <Dialog open={showVersionHistory} onOpenChange={setShowVersionHistory}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Version History</DialogTitle>
             <DialogDescription>
-              View and manage different versions of this prompt
+              View and compare different versions of this prompt
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            {versions.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">No version history available</p>
-            ) : (
-              versions.map((version) => (
-                <div key={version.version} className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">Version {version.version}</div>
-                      <div className="text-sm text-muted-foreground">
-                        Created: {new Date(version.createdAt).toLocaleString()}
-                      </div>
-                      {version.modifiedAt !== version.createdAt && (
+          
+          <Tabs defaultValue="list" className="mt-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="list">Version List</TabsTrigger>
+              <TabsTrigger value="diff">Compare Versions</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="list" className="space-y-2 max-h-[60vh] overflow-y-auto">
+              {versions.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">No version history available</p>
+              ) : (
+                versions.map((version) => (
+                  <div key={version.version} className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">Version {version.version}</div>
                         <div className="text-sm text-muted-foreground">
-                          Modified: {new Date(version.modifiedAt).toLocaleString()}
+                          Created: {new Date(version.createdAt).toLocaleString()}
                         </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={version.status === 'active' ? 'default' : 'secondary'}>
-                        {version.status}
-                      </Badge>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          loadVersion(version.version)
-                          setShowVersionHistory(false)
-                        }}
-                      >
-                        Load
-                      </Button>
-                      {version.status !== 'active' && (
+                        {version.modifiedAt && version.modifiedAt !== version.createdAt && (
+                          <div className="text-sm text-muted-foreground">
+                            Modified: {new Date(version.modifiedAt).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={version.status === 'active' ? 'default' : 'secondary'}>
+                          {version.status}
+                        </Badge>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => activateVersion(version.version)}
+                          onClick={() => {
+                            loadVersion(version.version)
+                            setShowVersionHistory(false)
+                          }}
                         >
-                          Activate
+                          Load
                         </Button>
-                      )}
+                        {version.status !== 'active' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => activateVersion(version.version)}
+                          >
+                            Activate
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
+                ))
+              )}
+            </TabsContent>
+            
+            <TabsContent value="diff">
+              {versions.length >= 2 ? (
+                <VersionDiff 
+                  versions={versions.map(v => ({
+                    ...v,
+                    content: v.content || '',
+                    frontmatter: v.frontmatter || {}
+                  }))}
+                  currentVersion={currentVersion}
+                />
+              ) : (
+                <p className="text-muted-foreground text-center py-8">
+                  Need at least 2 versions to compare
+                </p>
+              )}
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>

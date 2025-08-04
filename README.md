@@ -23,30 +23,52 @@ cp .env.example .env.local
 
 ---
 
-## 🗂️ Folder Structure (key parts)
+## 🗂️ Folder Structure
 
+```
 prompts/
-global/
-rules_v1.md
-blueprints.yaml
-clients/
-vibit/
-_brand_v2.md
-older_v1.md
-pupscan/
-_brand_v2.md
-basic_v1.md
+  global/
+    rules_v1.md          # global rules
+    blueprints.yaml      # blueprint definitions
+  clients/
+    {client}/
+      _brand_v#.md       # brand root
+      {campaign}_v#.md   # campaign patch
+```
 
-src/
-app/ # Next.js App Router
-components/
-PromptTree.tsx
-HookEditor.tsx
-lib/
-blueprint.ts
-promptMerge.ts
-claude.ts
-validate.ts
+## 📋 Variable Legend
+
+The prompt manager includes an intelligent variable legend that:
+
+- **Auto-scans** active global, brand, and campaign YAML frontmatter
+- **Displays** variables in a table: `key | scope | default | overrides`
+- **Click to jump** - clicking any variable jumps cursor to first occurrence in merged prompt
+- **Conflict indicators**:
+  - 🔴 Red dot: Campaign overrides brand
+  - 🟠 Orange dot: Any override exists
+
+### Variable Scopes
+
+1. **Global** - defined in `prompts/global/*.md`
+2. **Brand** - defined in client's `_brand_v#.md`
+3. **Campaign** - defined in campaign files `{campaign}_v#.md`
+
+### Frontmatter Keys
+
+- **Meta keys**: `version`, `status`, `description` (system use)
+- **All other keys**: render variables (camelCase) - surfaced in editor
+
+## 🛠️ Quick Actions Toolbar
+
+- **↗** New version - clones file, bumps version, toggles active
+- **Δ** Diff against v-1 - inline viewer
+- **⚠** Linter - checks char caps, missing hashtags, banned words
+
+## ⌨️ Editor Shortcuts
+
+- `Ctrl+S` - Save
+- Auto-save every 30 seconds
+- Vim keymap enabled by default
 
 
 ---

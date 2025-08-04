@@ -14,7 +14,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Play, Copy, Loader2, Download, ChevronDown, FileSpreadsheet, Eye } from 'lucide-react'
+import { Play, Copy, Loader2, Download, ChevronDown, FileSpreadsheet, Eye, AlertCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { ExcelTable } from '@/components/ExcelTable'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
@@ -83,6 +83,9 @@ export default function GeneratorPage() {
   const [showDebugPreview, setShowDebugPreview] = useState(false)
   const [debugPromptChain, setDebugPromptChain] = useState<any>(null)
   const [recentTopics, setRecentTopics] = useState<string[]>([])
+  const [promptLastModified, setPromptLastModified] = useState<string | null>(null)
+  const [generationTimestamp, setGenerationTimestamp] = useState<string | null>(null)
+  const [isStale, setIsStale] = useState(false)
 
   useEffect(() => {
     loadOptions()
@@ -114,6 +117,40 @@ export default function GeneratorPage() {
       localStorage.setItem('generatorConfig', JSON.stringify(config))
     }
   }, [config])
+  
+  // Check if prompts have been modified since last generation
+  useEffect(() => {
+    const checkStaleState = async () => {
+      if (!config.client || !config.campaign) return
+      
+      try {
+        // Check prompt modification time
+        const res = await fetch(`/api/prompts/check-modified?client=${config.client}&campaign=${config.campaign}`)
+        const data = await res.json()
+        
+        if (data.lastModified) {
+          setPromptLastModified(data.lastModified)
+          
+          // Load generation timestamp from localStorage
+          const genKey = `generation_${config.client}_${config.campaign}`
+          const lastGen = localStorage.getItem(genKey)
+          
+          if (lastGen) {
+            setGenerationTimestamp(lastGen)
+            // Check if prompts were modified after last generation
+            const isStaleNow = new Date(data.lastModified) > new Date(lastGen)
+            setIsStale(isStaleNow)
+          } else {
+            setIsStale(false) // No previous generation
+          }
+        }
+      } catch (err) {
+        console.error('Failed to check prompt modification:', err)
+      }
+    }
+    
+    checkStaleState()
+  }, [config.client, config.campaign])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -199,6 +236,13 @@ export default function GeneratorPage() {
       }))
       setHooks(formattedHooks)
       setShowHooksModal(true)
+      
+      // Save generation timestamp
+      const genKey = `generation_${config.client}_${config.campaign}`
+      const timestamp = new Date().toISOString()
+      localStorage.setItem(genKey, timestamp)
+      setGenerationTimestamp(timestamp)
+      setIsStale(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate hooks')
     } finally {
@@ -775,11 +819,26 @@ export default function GeneratorPage() {
 
           {/* Actions */}
           <div className="flex justify-end gap-2">
-            {config.addBottomText && (
-              <div className="text-sm text-muted-foreground mr-auto">
-                Hooks will include bottom text format
-              </div>
-            )}
+            <div className="flex flex-1 items-center gap-3">
+              {config.addBottomText && (
+                <div className="text-sm text-muted-foreground">
+                  Hooks will include bottom text format
+                </div>
+              )}
+              {isStale && (
+                <Alert className="flex-1 py-2 px-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    Prompts have been updated since last generation
+                    {generationTimestamp && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        (last: {new Date(generationTimestamp).toLocaleTimeString()})
+                      </span>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
             {debugMode && (
               <>
                 <Button

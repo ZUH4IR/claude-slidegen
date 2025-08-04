@@ -24,7 +24,7 @@ export async function GET() {
           
           for (const file of brandFiles) {
             // Extract campaign name from files like "older_v1.md"
-            if (file.endsWith('.md') && !file.startsWith('_brand')) {
+            if (file.endsWith('.md') && !file.startsWith('_client')) {
               const campaignName = file.replace(/_v\d+\.md$/, '')
               if (!campaigns[item.name].includes(campaignName)) {
                 campaigns[item.name].push(campaignName)

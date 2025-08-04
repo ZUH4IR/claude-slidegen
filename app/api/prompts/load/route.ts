@@ -27,19 +27,19 @@ export async function GET(request: NextRequest) {
     
     const clientsDir = path.join(process.cwd(), 'prompts', 'clients', client)
     
-    if (type === 'brand') {
-      // Find the active brand file
+    if (type === 'client') {
+      // Find the active client file
       const files = await fs.readdir(clientsDir)
-      const brandFile = files.find(f => f.startsWith('_brand_v') && f.endsWith('.md'))
+      const clientFile = files.find(f => f.startsWith('_client_v') && f.endsWith('.md'))
       
-      if (!brandFile) {
+      if (!clientFile) {
         return NextResponse.json(
-          { error: 'Brand file not found' },
+          { error: 'Client file not found' },
           { status: 404 }
         )
       }
       
-      const filePath = path.join(clientsDir, brandFile)
+      const filePath = path.join(clientsDir, clientFile)
       const fileContent = await fs.readFile(filePath, 'utf-8')
       const { data: frontmatter, content } = matter(fileContent)
       

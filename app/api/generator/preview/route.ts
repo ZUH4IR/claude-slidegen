@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     // Load client prompt
     try {
-      const clientPath = path.join(process.cwd(), 'prompts', client, '_brand.md')
+      const clientPath = path.join(process.cwd(), 'prompts', 'clients', client, '_client.md')
       const clientContent = await readFile(clientPath, 'utf-8')
       const { content: clientPromptContent } = matter(clientContent)
       debugData.clientPrompt = clientPromptContent.trim()
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     // Load campaign prompt if specified
     if (campaign) {
       try {
-        const campaignPath = path.join(process.cwd(), 'prompts', client, `${campaign}.md`)
+        const campaignPath = path.join(process.cwd(), 'prompts', 'clients', client, `${campaign}.md`)
         const campaignContent = await readFile(campaignPath, 'utf-8')
         const { content: campaignPromptContent } = matter(campaignContent)
         debugData.campaignPrompt = campaignPromptContent.trim()

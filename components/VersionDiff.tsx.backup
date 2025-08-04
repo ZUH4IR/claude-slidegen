@@ -1,0 +1,270 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Card } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
+// Simple diff implementation
+function diffLines(oldText: string, newText: string) {
+  const oldLines = oldText.split('\n')
+  const newLines = newText.split('\n')
+  const result: Array<{value: string, added?: boolean, removed?: boolean}> = []
+  
+  let oldIndex = 0
+  let newIndex = 0
+  
+  while (oldIndex < oldLines.length || newIndex < newLines.length) {
+    if (oldIndex >= oldLines.length) {
+      // Rest are additions
+      result.push({ value: newLines[newIndex] + '\n', added: true })
+      newIndex++
+    } else if (newIndex >= newLines.length) {
+      // Rest are deletions
+      result.push({ value: oldLines[oldIndex] + '\n', removed: true })
+      oldIndex++
+    } else if (oldLines[oldIndex] === newLines[newIndex]) {
+      // Same line
+      result.push({ value: oldLines[oldIndex] + '\n' })
+      oldIndex++
+      newIndex++
+    } else {
+      // Look ahead to find matching lines
+      let foundMatch = false
+      
+      // Check if current new line exists ahead in old
+      for (let i = oldIndex + 1; i < Math.min(oldIndex + 5, oldLines.length); i++) {
+        if (oldLines[i] === newLines[newIndex]) {
+          // Mark lines as removed
+          for (let j = oldIndex; j < i; j++) {
+            result.push({ value: oldLines[j] + '\n', removed: true })
+          }
+          oldIndex = i
+          foundMatch = true
+          break
+        }
+      }
+      
+      if (!foundMatch) {
+        // Check if current old line exists ahead in new
+        for (let i = newIndex + 1; i < Math.min(newIndex + 5, newLines.length); i++) {
+          if (newLines[i] === oldLines[oldIndex]) {
+            // Mark lines as added
+            for (let j = newIndex; j < i; j++) {
+              result.push({ value: newLines[j] + '\n', added: true })
+            }
+            newIndex = i
+            foundMatch = true
+            break
+          }
+        }
+      }
+      
+      if (!foundMatch) {
+        // No match found, mark as change
+        result.push({ value: oldLines[oldIndex] + '\n', removed: true })
+        result.push({ value: newLines[newIndex] + '\n', added: true })
+        oldIndex++
+        newIndex++
+      }
+    }
+  }
+  
+  return result
+}
+
+function diffWords(oldText: string, newText: string) {
+  // For word diff, just use line diff for now
+  return diffLines(oldText, newText)
+}
+
+interface Version {
+  version: number
+  content: string
+  frontmatter: any
+  status: string
+  createdAt: string
+}
+
+interface VersionDiffProps {
+  versions: Version[]
+  currentVersion: number
+}
+
+export function VersionDiff({ versions, currentVersion }: VersionDiffProps) {
+  const [leftVersion, setLeftVersion] = useState<number>(currentVersion)
+  const [rightVersion, setRightVersion] = useState<number>(currentVersion)
+  const [diffType, setDiffType] = useState<'lines' | 'words'>('lines')
+  const [showOnlyChanges, setShowOnlyChanges] = useState(false)
+
+  useEffect(() => {
+    if (versions.length > 1) {
+      const sorted = [...versions].sort((a, b) => b.version - a.version)
+      if (sorted.length >= 2) {
+        setLeftVersion(sorted[1].version)
+        setRightVersion(sorted[0].version)
+      }
+    }
+  }, [versions])
+
+  const getVersionContent = (version: number) => {
+    const v = versions.find(v => v.version === version)
+    if (!v) return ''
+    
+    // Combine frontmatter and content for comparison
+    const fm = Object.entries(v.frontmatter || {})
+      .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+      .join('\n')
+    
+    return fm ? `---\n${fm}\n---\n\n${v.content}` : v.content
+  }
+
+  const renderDiff = () => {
+    const leftContent = getVersionContent(leftVersion)
+    const rightContent = getVersionContent(rightVersion)
+    
+    if (!leftContent && !rightContent) {
+      return <div className="text-muted-foreground text-center p-4">No content to compare</div>
+    }
+    
+    const changes = diffType === 'lines' 
+      ? diffLines(leftContent, rightContent)
+      : diffWords(leftContent, rightContent)
+    
+    let lineNumber = 0
+    
+    return (
+      <div className="font-mono text-sm space-y-1">
+        {changes.map((part, index) => {
+          if (part.added || part.removed || !showOnlyChanges) {
+            const lines = part.value.split('\n').filter((_, i, arr) => i < arr.length - 1 || part.value[part.value.length - 1] !== '\n')
+            
+            return lines.map((line, lineIndex) => {
+              lineNumber++
+              return (
+                <div
+                  key={`${index}-${lineIndex}`}
+                  className={cn(
+                    "px-2 py-0.5 rounded",
+                    part.added && "bg-green-100 text-green-900",
+                    part.removed && "bg-red-100 text-red-900",
+                    !part.added && !part.removed && "bg-gray-50"
+                  )}
+                >
+                  <span className="text-gray-400 mr-2 select-none">
+                    {String(lineNumber).padStart(4, ' ')}
+                  </span>
+                  <span className={cn(
+                    "mr-2 select-none",
+                    part.added && "text-green-600",
+                    part.removed && "text-red-600",
+                    !part.added && !part.removed && "text-gray-400"
+                  )}>
+                    {part.added ? '+' : part.removed ? '-' : ' '}
+                  </span>
+                  <span className="whitespace-pre-wrap">{line || ' '}</span>
+                </div>
+              )
+            })
+          }
+          return null
+        })}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>Compare (older)</Label>
+          <Select value={leftVersion.toString()} onValueChange={(v) => setLeftVersion(parseInt(v))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {versions.map(v => (
+                <SelectItem key={v.version} value={v.version.toString()}>
+                  Version {v.version}
+                  {v.status === 'active' && <Badge className="ml-2" variant="default">Active</Badge>}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div>
+          <Label>With (newer)</Label>
+          <Select value={rightVersion.toString()} onValueChange={(v) => setRightVersion(parseInt(v))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {versions.map(v => (
+                <SelectItem key={v.version} value={v.version.toString()}>
+                  Version {v.version}
+                  {v.status === 'active' && <Badge className="ml-2" variant="default">Active</Badge>}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      
+      {/* Options */}
+      <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-2">
+          <input
+            type="radio"
+            id="diff-lines"
+            checked={diffType === 'lines'}
+            onChange={() => setDiffType('lines')}
+            className="text-primary"
+          />
+          <label htmlFor="diff-lines">Line diff</label>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <input
+            type="radio"
+            id="diff-words"
+            checked={diffType === 'words'}
+            onChange={() => setDiffType('words')}
+            className="text-primary"
+          />
+          <label htmlFor="diff-words">Word diff</label>
+        </div>
+        
+        <div className="flex items-center gap-2 ml-auto">
+          <input
+            type="checkbox"
+            id="show-changes"
+            checked={showOnlyChanges}
+            onChange={(e) => setShowOnlyChanges(e.target.checked)}
+            className="text-primary rounded"
+          />
+          <label htmlFor="show-changes">Show only changes</label>
+        </div>
+      </div>
+      
+      {/* Diff display */}
+      <Card className="p-4 max-h-[600px] overflow-auto">
+        {renderDiff()}
+      </Card>
+      
+      {/* Legend */}
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-red-100 rounded" />
+          <span>Removed in v{rightVersion}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-green-100 rounded" />
+          <span>Added in v{rightVersion}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
