@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-08-04T21:00:34.362Z",
+  "config": {
+    "client": "dreamease",
+    "campaign": "relationship-anxiety",
+    "blueprint": "medical_betrayal",
+    "rows": 5,
+    "hookAppeal": "drama",
+    "charCap": 95,
+    "topic": "yes",
+    "productSlide": 5,
+    "addSelfAwareJoke": false,
+    "addBottomText": true
+  },
+  "hooks": [
+    "Doctor told me I was fine but I knew something was wrong | Found out the truth 6 months later...",
+    "My nurse was acting strange during my checkup | What she whispered changed everything",
+    "They said it was just anxiety but I kept pushing | The scan revealed their mistake",
+    "Thought I was healthy until I saw my chart in the waiting room | Now I'm suing",
+    "When the second opinion doctor gasped at my results | The first hospital tried to cover it up"
+  ],
+  "csv": "Hook,Slide 1,Slide 2,Slide 3,Slide 4,Slide 5\n\"Doctor told me I was fine but I knew something was wrong | Found out the truth 6 months later...\",\"They said my symptoms were just stress and prescribed anti-anxiety meds\",\"Spent thousands on therapy and meditation apps while pain got worse\",\"Random blood test showed dangerous enzyme levels they missed\",\"Had to get emergency surgery for what they ignored\",\"Now I help others advocate for themselves. Don't let them dismiss you. Link in bio for patient advocacy guide\"\n\"My nurse was acting strange during my checkup | What she whispered changed everything\",\"She kept looking at my chart then back at me with concern\",\"When doctor left she whispered 'get a second opinion ASAP'\",\"New doctor found stage 1 tumor that first clinic missed\",\"Original clinic had misread 3 other patients' results too\",\"Taking control of your health starts with the right information. Get our medical record review guide - link in bio\"\n\"They said it was just anxiety but I kept pushing | The scan revealed their mistake\",\"4 doctors told me it was in my head. Prescribed antidepressants\",\"Lost my job because symptoms were so bad. No one believed me\",\"Finally got MRI I begged for - found serious nerve compression\",\"Could have avoided permanent damage if they listened sooner\",\"Don't let them gaslight you. Download our symptom tracking app to document everything. Link in bio\"\n\"Thought I was healthy until I saw my chart in the waiting room | Now I'm suing\",\"Glanced at computer while nurse stepped out - saw warning flags they ignored\",\"Had been complaining of these exact symptoms for 2 years\",\"Specialist confirmed they missed critical warning signs\",\"Their negligence led to permanent complications\",\"Protect yourself with our medical record monitoring service. Never miss a red flag again. Link in bio\"\n\"When the second opinion doctor gasped at my results | The first hospital tried to cover it up\",\"First hospital said all tests were normal for 8 months straight\",\"New doctor ordered same tests - results were dangerously abnormal\",\"First hospital had 'lost' the concerning results\",\"Found out they did this to dozens of patients\",\"Take charge of your health journey. Our app tracks all your results in one place. Never lose critical info again\""
+}

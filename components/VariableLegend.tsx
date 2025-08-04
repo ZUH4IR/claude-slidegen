@@ -34,16 +34,19 @@ export function VariableLegend({ client, campaign, onVariableClick, className }:
     if (!client) return
     
     const loadVariables = async () => {
+      console.log('[VariableLegend] Loading variables for:', { client, campaign })
       try {
         setLoading(true)
         const params = new URLSearchParams({ client })
         if (campaign) params.append('campaign', campaign)
         
+        console.log('[VariableLegend] Fetching:', `/api/legend?${params}`)
         const res = await fetch(`/api/legend?${params}`)
         const data = await res.json()
+        console.log('[VariableLegend] Response:', data)
         setVariables(data.variables || [])
       } catch (err) {
-        console.error('Failed to load variables:', err)
+        console.error('[VariableLegend] Failed to load variables:', err)
       } finally {
         setLoading(false)
       }

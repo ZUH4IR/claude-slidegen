@@ -11,6 +11,7 @@ export async function GET() {
     
     const result = {
       global: [] as any[],
+      blueprints: [] as any[],
       clients: {} as Record<string, any>
     }
     
@@ -37,6 +38,26 @@ export async function GET() {
       }
     } catch (err) {
       // Global directory might not exist
+    }
+    
+    // Load blueprints
+    const blueprintsDir = path.join(process.cwd(), 'blueprints')
+    try {
+      const blueprintFiles = await fs.readdir(blueprintsDir)
+      for (const file of blueprintFiles) {
+        if (file.endsWith('.md')) {
+          result.blueprints.push({
+            name: file,
+            type: 'file',
+            path: `blueprints/${file.replace('.md', '')}`,
+            metadata: {
+              isBlueprint: true
+            }
+          })
+        }
+      }
+    } catch (err) {
+      // Blueprints directory might not exist
     }
     
     // Load clients and their campaigns

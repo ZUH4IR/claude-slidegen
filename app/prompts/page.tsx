@@ -18,6 +18,7 @@ import { VariableLegend } from '@/components/VariableLegend'
 import { FolderTree } from '@/components/FolderTree'
 import { ColorCodedEditor } from '@/components/ColorCodedEditor'
 import { VersionDiff } from '@/components/VersionDiff'
+import { PromptChainDiagram } from '@/components/PromptChainDiagram'
 
 interface PromptVersion {
   version: number
@@ -50,6 +51,7 @@ export default function PromptsPage() {
   const [isNewClient, setIsNewClient] = useState(false)
   const [isNewCampaign, setIsNewCampaign] = useState(false)
   const [isGlobalRules, setIsGlobalRules] = useState(false)
+  const [isViewingBlueprint, setIsViewingBlueprint] = useState(false)
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'form' | 'raw'>('form')
   const [showVersionHistory, setShowVersionHistory] = useState(false)
@@ -58,6 +60,11 @@ export default function PromptsPage() {
   const [versions, setVersions] = useState<any[]>([])
   const [currentVersion, setCurrentVersion] = useState(1)
   const [fullPromptChain, setFullPromptChain] = useState('')
+  const [promptChainData, setPromptChainData] = useState<{
+    global?: string
+    client?: string
+    campaign?: string
+  }>({})
   const [selectedPath, setSelectedPath] = useState('')
   
   // Form fields
@@ -96,31 +103,43 @@ export default function PromptsPage() {
   
   // Load available variables for color coding
   useEffect(() => {
-    if (!selectedClient && !isGlobalRules) {
-      setAvailableVariables([])
-      return
-    }
-    
     const loadVariables = async () => {
+      console.log('[loadVariables] Starting load', { selectedClient, isGlobalRules, campaignName })
       try {
-        const params = new URLSearchParams({ client: selectedClient || 'global' })
-        if (campaignName && !isNewClient) {
-          params.append('campaign', campaignName)
-        }
-        
-        const res = await fetch(`/api/legend?${params}`)
-        const data = await res.json()
-        
-        if (data.variables) {
-          setAvailableVariables(
-            data.variables.map((v: any) => ({
+        // If we have a selected client or are in global rules, load variables
+        if (selectedClient || isGlobalRules) {
+          const params = new URLSearchParams({ client: selectedClient || 'global' })
+          if (campaignName && !isNewClient) {
+            params.append('campaign', campaignName)
+          }
+          
+          console.log('[loadVariables] Fetching from API:', `/api/legend?${params}`)
+          const res = await fetch(`/api/legend?${params}`)
+          const data = await res.json()
+          console.log('[loadVariables] API response:', data)
+          
+          if (data.variables) {
+            const variables = data.variables.map((v: any) => ({
               key: v.key,
               scope: v.scope
             }))
-          )
+            console.log('[loadVariables] Setting variables:', variables)
+            setAvailableVariables(variables)
+          }
+        } else {
+          // Show default common variables when no client is selected
+          const defaultVars = [
+            { key: 'client_name', scope: 'global' },
+            { key: 'campaign_name', scope: 'global' },
+            { key: 'product_slide', scope: 'global' },
+            { key: 'tone_strength', scope: 'global' },
+            { key: 'rage_bait_intensity', scope: 'global' },
+          ]
+          console.log('[loadVariables] Using default variables:', defaultVars)
+          setAvailableVariables(defaultVars)
         }
       } catch (err) {
-        console.error('Failed to load variables:', err)
+        console.error('[loadVariables] Failed to load variables:', err)
       }
     }
     
@@ -333,9 +352,16 @@ export default function PromptsPage() {
   }
 
   const handleEditClient = async (clientName: string) => {
+    console.log('[handleEditClient] Loading client:', clientName)
     try {
       const res = await fetch(`/api/prompts/load?type=client&client=${clientName}`)
+      
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}: ${res.statusText}`)
+      }
+      
       const data = await res.json()
+      console.log('[handleEditClient] API response:', data)
       
       setSelectedClient(clientName)
       setSelectedType('edit')
@@ -345,20 +371,69 @@ export default function PromptsPage() {
       setClientName(clientName)
       setSelectedPath(`clients/${clientName}/_client`)
       
-      // Set raw prompt
-      setRawPrompt(matter.stringify(data.content, data.frontmatter))
+      // Handle case where content might be empty but valid
+      const content = data.content || ''
+      const frontmatter = data.frontmatter || {}
+      
+      console.log('[handleEditClient] Content:', content)
+      console.log('[handleEditClient] Frontmatter:', frontmatter)
+      
+      // Set raw prompt - even if content is empty, we should show the frontmatter
+      const rawContent = matter.stringify(content, frontmatter)
+      console.log('[handleEditClient] Raw content:', rawContent)
+      setRawPrompt(rawContent)
       
       // Parse into form fields
-      parseRawPrompt(matter.stringify(data.content, data.frontmatter))
+      parseRawPrompt(rawContent)
     } catch (err) {
-      console.error('Failed to load client:', err)
+      console.error('[handleEditClient] Failed to load client:', err)
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to load client file. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const handleViewBlueprint = async (blueprintName: string) => {
+    try {
+      const res = await fetch(`/api/prompts/load?type=blueprint&blueprint=${blueprintName}`)
+      const data = await res.json()
+      
+      // Blueprints are read-only
+      resetForm()
+      setIsViewingBlueprint(true)
+      setSelectedPath(`blueprints/${blueprintName}`)
+      setRawPrompt(data.content)
+      
+      // Show in raw view mode
+      setViewMode('raw')
+      
+      toast({
+        title: 'Blueprint Loaded',
+        description: `Viewing blueprint: ${blueprintName}`,
+      })
+    } catch (err) {
+      console.error('Failed to load blueprint:', err)
+      toast({
+        title: 'Error',
+        description: 'Failed to load blueprint',
+        variant: 'destructive'
+      })
     }
   }
 
   const handleEditCampaign = async (clientName: string, campaignName: string) => {
+    console.log('[handleEditCampaign] Loading campaign:', { clientName, campaignName })
     try {
       const res = await fetch(`/api/prompts/load?type=campaign&client=${clientName}&campaign=${campaignName}`)
+      
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}: ${res.statusText}`)
+      }
+      
       const data = await res.json()
+      console.log('[handleEditCampaign] API response:', data)
       
       setSelectedClient(clientName)
       setSelectedCampaign(campaignName)
@@ -369,13 +444,27 @@ export default function PromptsPage() {
       setCampaignName(campaignName)
       setSelectedPath(`clients/${clientName}/${campaignName}`)
       
-      // Set raw prompt
-      setRawPrompt(matter.stringify(data.content, data.frontmatter))
+      // Handle case where content might be empty but valid
+      const content = data.content || ''
+      const frontmatter = data.frontmatter || {}
+      
+      console.log('[handleEditCampaign] Content:', content)
+      console.log('[handleEditCampaign] Frontmatter:', frontmatter)
+      
+      // Set raw prompt - even if content is empty, we should show the frontmatter
+      const rawContent = matter.stringify(content, frontmatter)
+      console.log('[handleEditCampaign] Raw content:', rawContent)
+      setRawPrompt(rawContent)
       
       // Parse into form fields
-      parseRawPrompt(matter.stringify(data.content, data.frontmatter))
+      parseRawPrompt(rawContent)
     } catch (err) {
-      console.error('Failed to load campaign:', err)
+      console.error('[handleEditCampaign] Failed to load campaign:', err)
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to load campaign file. Please try again.',
+        variant: 'destructive'
+      })
     }
   }
 
@@ -504,6 +593,7 @@ export default function PromptsPage() {
   const loadFullPromptChain = async () => {
     try {
       let fullChain = '# Full Prompt Chain\n\n'
+      const chainData: typeof promptChainData = {}
       
       // Load global rules
       try {
@@ -511,6 +601,7 @@ export default function PromptsPage() {
         const globalData = await globalRes.json()
         fullChain += '## Global Rules\n\n'
         fullChain += globalData.content + '\n\n'
+        chainData.global = globalData.content
       } catch (err) {
         console.log('No global rules found')
       }
@@ -522,6 +613,7 @@ export default function PromptsPage() {
           const clientData = await clientRes.json()
           fullChain += `## Client: ${selectedClient}\n\n`
           fullChain += clientData.content + '\n\n'
+          chainData.client = clientData.content
         } catch (err) {
           console.log('No client prompt found')
         }
@@ -531,9 +623,11 @@ export default function PromptsPage() {
       if (isNewCampaign && campaignName) {
         fullChain += `## Campaign: ${campaignName}\n\n`
         fullChain += rawPrompt
+        chainData.campaign = rawPrompt
       }
       
       setFullPromptChain(fullChain)
+      setPromptChainData(chainData)
     } catch (err) {
       console.error('Failed to load full prompt chain:', err)
     }
@@ -714,6 +808,7 @@ export default function PromptsPage() {
     setIsNewClient(false)
     setIsNewCampaign(false)
     setIsGlobalRules(false)
+    setIsViewingBlueprint(false)
     setSelectedType('new')
     setClientName('')
     setCampaignName('')
@@ -857,6 +952,12 @@ export default function PromptsPage() {
           onSelect={(path, type, metadata) => {
             if (type === 'global') {
               handleEditGlobalRules()
+            } else if (type === 'blueprint') {
+              // Handle blueprint viewing
+              const blueprintName = path.split('/').pop()
+              if (blueprintName) {
+                handleViewBlueprint(blueprintName)
+              }
             } else if (type === 'client' && metadata?.clientName) {
               handleEditClient(metadata.clientName)
             } else if (type === 'campaign' && metadata?.clientName && metadata?.campaignName) {
@@ -871,6 +972,19 @@ export default function PromptsPage() {
             resetForm()
             setSelectedClient(clientName)
             setIsNewCampaign(true)
+          }}
+          onNewGlobalRule={() => {
+            resetForm()
+            setIsGlobalRules(true)
+            setSelectedType('new')
+            setSelectedPath('global/new-rule')
+          }}
+          onNewBlueprint={() => {
+            // For now, show a toast that blueprints are coming soon
+            toast({
+              title: 'Coming Soon',
+              description: 'Blueprint creation will be available in the next update',
+            })
           }}
           onRefresh={loadClients}
         />
@@ -887,17 +1001,20 @@ export default function PromptsPage() {
           </div>
 
           {/* Form/Editor */}
-          {(isNewClient || isNewCampaign || isGlobalRules) && (
+          {(isNewClient || isNewCampaign || isGlobalRules || isViewingBlueprint) && (
             <div className="space-y-6">
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle>
-                        {selectedType === 'edit' ? 'Edit' : 'Create New'} {isGlobalRules ? 'Global Rules' : isNewClient ? 'Client/Client' : 'Campaign'}
+                        {isViewingBlueprint ? 'Viewing Blueprint' : 
+                         selectedType === 'edit' ? 'Edit' : 'Create New'} {isViewingBlueprint ? '' : isGlobalRules ? 'Global Rules' : isNewClient ? 'Client/Client' : 'Campaign'}
                       </CardTitle>
                       <CardDescription>
-                        {isGlobalRules 
+                        {isViewingBlueprint
+                          ? `Viewing: ${selectedPath}`
+                          : isGlobalRules 
                           ? 'Editing: prompts/global/rules_v1.md'
                           : selectedType === 'edit' 
                           ? `Editing: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_client' : campaignName}_v${currentVersion}.md`
@@ -905,7 +1022,7 @@ export default function PromptsPage() {
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                      {selectedType === 'edit' && versions.length > 1 && (
+                      {!isViewingBlueprint && selectedType === 'edit' && versions.length > 1 && (
                         <Select 
                           value={currentVersion.toString()} 
                           onValueChange={(v) => loadVersion(parseInt(v))}
@@ -924,7 +1041,8 @@ export default function PromptsPage() {
                         </Select>
                       )}
                       {/* Quick Actions Toolbar */}
-                      <div className="flex items-center gap-1 border-r pr-2">
+                      {!isViewingBlueprint && (
+                        <div className="flex items-center gap-1 border-r pr-2">
                         <Button
                           size="sm"
                           variant="ghost"
@@ -954,14 +1072,18 @@ export default function PromptsPage() {
                           <span className="text-lg">⚠</span>
                         </Button>
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => {
+                      )}
+                      {!isViewingBlueprint && (
+                        <Button size="sm" variant="outline" onClick={() => {
                         setShowVersionHistory(true)
                         loadVersions()
                       }}>
                         <GitBranch className="h-4 w-4 mr-1" />
                         History
                       </Button>
-                      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'form' | 'raw')}>
+                      )}
+                      {!isViewingBlueprint && (
+                        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'form' | 'raw')}>
                         <TabsList>
                           <TabsTrigger value="form">
                             <Eye className="h-4 w-4 mr-1" />
@@ -973,11 +1095,12 @@ export default function PromptsPage() {
                           </TabsTrigger>
                         </TabsList>
                       </Tabs>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {viewMode === 'form' ? (
+                  {viewMode === 'form' && !isViewingBlueprint ? (
                     <div className="space-y-4">
                       {isGlobalRules ? (
                         <>
@@ -1017,12 +1140,12 @@ export default function PromptsPage() {
 
                           <div>
                             <Label htmlFor="integration-rule">Integration Rule</Label>
-                            <Textarea
-                              id="integration-rule"
-                              placeholder="e.g., mention vibit on slide {{product_slide}}"
+                            <ColorCodedEditor
                               value={integrationRule}
-                              onChange={(e) => setIntegrationRule(e.target.value)}
-                              rows={2}
+                              onChange={setIntegrationRule}
+                              variables={availableVariables}
+                              className="min-h-[80px] text-sm"
+                              placeholder="e.g., mention vibit on slide {{product_slide}}"
                             />
                           </div>
 
@@ -1119,12 +1242,12 @@ export default function PromptsPage() {
 
                           <div>
                             <Label htmlFor="campaign-notes">Campaign Notes</Label>
-                            <Textarea
-                              id="campaign-notes"
-                              placeholder="Campaign-specific rules and notes"
+                            <ColorCodedEditor
                               value={campaignNotes}
-                              onChange={(e) => setCampaignNotes(e.target.value)}
-                              rows={4}
+                              onChange={setCampaignNotes}
+                              variables={availableVariables}
+                              className="min-h-[120px] text-sm"
+                              placeholder="Campaign-specific rules and notes"
                             />
                           </div>
                         </>
@@ -1142,31 +1265,33 @@ export default function PromptsPage() {
                         
                         {dynamicFields.map(field => (
                           <div key={field.key} className="space-y-2 p-4 border rounded-lg">
-                            <div className="flex items-center justify-between">
-                              <Label className="font-medium">
-                                {field.key.startsWith('fm_') ? field.label : (
-                                  <Input
-                                    value={field.label}
-                                    onChange={(e) => updateDynamicField(field.key, { label: e.target.value })}
-                                    placeholder="Section Title"
-                                    className="font-medium"
-                                  />
-                                )}
-                              </Label>
+                            <div className="flex items-center justify-between gap-2">
+                              {field.key.startsWith('fm_') ? (
+                                <Label className="font-medium">{field.label}</Label>
+                              ) : (
+                                <Input
+                                  value={field.label}
+                                  onChange={(e) => updateDynamicField(field.key, { label: e.target.value })}
+                                  placeholder="Section Title"
+                                  className="font-medium flex-1"
+                                />
+                              )}
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => removeDynamicField(field.key)}
+                                className="h-8 w-8 p-0"
                               >
                                 ×
                               </Button>
                             </div>
                             {field.type === 'textarea' ? (
-                              <Textarea
+                              <ColorCodedEditor
                                 value={field.value}
-                                onChange={(e) => updateDynamicField(field.key, { value: e.target.value })}
+                                onChange={(value) => updateDynamicField(field.key, { value })}
+                                variables={availableVariables}
+                                className="min-h-[100px] text-sm"
                                 placeholder={field.key.startsWith('fm_') ? `Enter ${field.label.toLowerCase()}...` : "Section content..."}
-                                rows={3}
                               />
                             ) : field.type === 'checkbox' ? (
                               <div className="flex items-center space-x-2">
@@ -1220,16 +1345,18 @@ export default function PromptsPage() {
                     </div>
                   )}
 
-                  <Button 
-                    onClick={handleSave} 
-                    className="w-full mt-4"
-                    disabled={
-                      isGlobalRules ? false : isNewClient ? (!clientName || !clientVoice) : (!selectedClient || !campaignName)
-                    }
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {isGlobalRules ? 'Save Global Rules' : selectedType === 'edit' ? 'Save New Version' : 'Create'} {!isGlobalRules && (isNewClient ? 'Client' : 'Campaign')}
-                  </Button>
+                  {!isViewingBlueprint && (
+                    <Button 
+                      onClick={handleSave} 
+                      className="w-full mt-4"
+                      disabled={
+                        isGlobalRules ? false : isNewClient ? (!clientName || !clientVoice) : (!selectedClient || !campaignName)
+                      }
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {isGlobalRules ? 'Save Global Rules' : selectedType === 'edit' ? 'Save New Version' : 'Create'} {!isGlobalRules && (isNewClient ? 'Client' : 'Campaign')}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1322,9 +1449,18 @@ export default function PromptsPage() {
                           </Button>
                         </div>
                       </div>
-                      <div className="p-4 bg-muted rounded-lg max-h-[400px] overflow-y-auto">
-                        <pre className="text-xs whitespace-pre-wrap">{showFullChain ? fullPromptChain : previewContent}</pre>
-                      </div>
+                      {showFullChain ? (
+                        <PromptChainDiagram
+                          globalContent={promptChainData.global}
+                          clientContent={promptChainData.client}
+                          campaignContent={promptChainData.campaign}
+                          className="max-h-[600px] overflow-y-auto"
+                        />
+                      ) : (
+                        <div className="p-4 bg-muted rounded-lg max-h-[400px] overflow-y-auto">
+                          <pre className="text-xs whitespace-pre-wrap">{previewContent}</pre>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 )}
@@ -1332,7 +1468,7 @@ export default function PromptsPage() {
             </div>
           )}
 
-          {!isNewClient && !isNewCampaign && !isGlobalRules && (
+          {!isNewClient && !isNewCampaign && !isGlobalRules && !isViewingBlueprint && (
             <Card>
               <CardContent className="flex items-center justify-center h-64 text-muted-foreground">
                 Select a client or campaign from the sidebar to edit, or create a new one

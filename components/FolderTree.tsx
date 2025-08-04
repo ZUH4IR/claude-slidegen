@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ChevronRight, FileText, Folder, FolderOpen, Globe, Users, Hash, Plus, RefreshCw } from 'lucide-react'
+import { ChevronRight, FileText, Folder, FolderOpen, Globe, Users, Hash, Plus, RefreshCw, Layout } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +17,7 @@ interface TreeNode {
     isGlobal?: boolean
     isClient?: boolean
     isCampaign?: boolean
+    isBlueprint?: boolean
     clientName?: string
     campaignName?: string
   }
@@ -27,10 +28,12 @@ interface FolderTreeProps {
   selectedPath?: string
   onNewClient?: () => void
   onNewCampaign?: (clientName: string) => void
+  onNewGlobalRule?: () => void
+  onNewBlueprint?: () => void
   onRefresh?: () => void
 }
 
-export function FolderTree({ onSelect, selectedPath, onNewClient, onNewCampaign, onRefresh }: FolderTreeProps) {
+export function FolderTree({ onSelect, selectedPath, onNewClient, onNewCampaign, onNewGlobalRule, onNewBlueprint, onRefresh }: FolderTreeProps) {
   const [tree, setTree] = useState<TreeNode[]>([])
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['global', 'clients']))
   const [loading, setLoading] = useState(true)
@@ -52,6 +55,13 @@ export function FolderTree({ onSelect, selectedPath, onNewClient, onNewCampaign,
           path: 'global',
           metadata: { isGlobal: true },
           children: data.global || []
+        },
+        {
+          name: 'blueprints',
+          type: 'folder',
+          path: 'blueprints',
+          metadata: { isBlueprint: true },
+          children: data.blueprints || []
         },
         {
           name: 'clients',
@@ -110,6 +120,10 @@ export function FolderTree({ onSelect, selectedPath, onNewClient, onNewCampaign,
       return <Globe className="h-4 w-4 text-gray-500" />
     }
     
+    if (node.metadata?.isBlueprint || node.path === 'blueprints') {
+      return <Layout className="h-4 w-4 text-purple-500" />
+    }
+    
     if (node.path === 'clients') {
       return <Users className="h-4 w-4 text-blue-500" />
     }
@@ -122,6 +136,7 @@ export function FolderTree({ onSelect, selectedPath, onNewClient, onNewCampaign,
 
   const getNodeColor = (node: TreeNode) => {
     if (node.metadata?.isGlobal) return 'text-gray-700'
+    if (node.metadata?.isBlueprint) return 'text-purple-700'
     if (node.metadata?.isClient) return 'text-blue-700'
     if (node.metadata?.isCampaign) return 'text-green-700'
     return 'text-foreground'
@@ -148,6 +163,7 @@ export function FolderTree({ onSelect, selectedPath, onNewClient, onNewCampaign,
               toggleExpanded(node.path)
             } else {
               onSelect?.(node.path, node.metadata?.isGlobal ? 'global' : 
+                        node.metadata?.isBlueprint ? 'blueprint' :
                         node.metadata?.isClient ? 'client' : 'campaign', node.metadata)
             }
           }}
@@ -187,6 +203,38 @@ export function FolderTree({ onSelect, selectedPath, onNewClient, onNewCampaign,
                 >
                   <Plus className="h-3 w-3 mr-1" />
                   Add Campaign
+                </Button>
+              </div>
+            )}
+            {node.metadata?.isGlobal && node.children?.length === 0 && (
+              <div style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }} className="mt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full max-w-[200px] h-7 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onNewGlobalRule?.()
+                  }}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Global Rule
+                </Button>
+              </div>
+            )}
+            {node.metadata?.isBlueprint && (
+              <div style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }} className="mt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full max-w-[200px] h-7 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onNewBlueprint?.()
+                  }}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Blueprint
                 </Button>
               </div>
             )}

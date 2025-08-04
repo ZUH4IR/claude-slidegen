@@ -40,6 +40,7 @@ export function ColorCodedEditor({
 
   // Parse variables from text
   useEffect(() => {
+    console.log('[ColorCodedEditor] Parsing variables, available:', variables)
     const variablePattern = /\{\{(.*?)\}\}/g
     const matches: Variable[] = []
     let match
@@ -47,6 +48,7 @@ export function ColorCodedEditor({
     while ((match = variablePattern.exec(value)) !== null) {
       const varName = match[1].trim()
       const foundVar = variables.find(v => v.key === varName)
+      console.log('[ColorCodedEditor] Found variable:', varName, 'Matched:', foundVar)
       
       matches.push({
         key: varName,
@@ -57,7 +59,7 @@ export function ColorCodedEditor({
     }
 
     setParsedVariables(matches)
-  }, [value, variables])
+  }, [value, variables.map(v => v.key).join(',')])
   
   // Validate content
   useEffect(() => {
@@ -88,7 +90,7 @@ export function ColorCodedEditor({
     })
     
     setValidationErrors(errors)
-  }, [value, maxLineLength, bannedWords])
+  }, [value, maxLineLength, bannedWords.join(',')])
 
   // Sync scroll between textarea and highlight layer
   const handleScroll = () => {
@@ -182,7 +184,7 @@ export function ColorCodedEditor({
           onScroll={handleScroll}
           placeholder={placeholder}
           className={cn(
-            "relative bg-transparent resize-none",
+            "relative bg-transparent resize-y",
             "font-mono text-sm leading-6",
             validationErrors.length > 0 && "border-amber-500",
             className

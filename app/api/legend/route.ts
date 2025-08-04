@@ -25,6 +25,34 @@ export async function GET(request: NextRequest) {
 
     const variables: Record<string, Variable> = {}
     
+    // Add common default variables
+    const commonVariables = {
+      client_name: { key: 'client_name', scope: 'global' as const, default: client || 'client' },
+      campaign_name: { key: 'campaign_name', scope: 'global' as const, default: campaign || 'campaign' },
+      product_slide: { key: 'product_slide', scope: 'global' as const, default: 5 },
+      tone_strength: { key: 'tone_strength', scope: 'global' as const, default: 80 },
+      rage_bait_intensity: { key: 'rage_bait_intensity', scope: 'global' as const, default: 50 },
+      hook_style: { key: 'hook_style', scope: 'global' as const, default: 'curiosity' },
+      cta_variant: { key: 'cta_variant', scope: 'global' as const, default: 'soft' },
+      audience: { key: 'audience', scope: 'campaign' as const, default: 'general' },
+      primary_benefit: { key: 'primary_benefit', scope: 'client' as const, default: 'main benefit' },
+      secondary_benefit: { key: 'secondary_benefit', scope: 'client' as const, default: 'additional benefit' },
+      product_type: { key: 'product_type', scope: 'client' as const, default: 'product' },
+      integration_style: { key: 'integration_style', scope: 'client' as const, default: 'natural' },
+      relationship: { key: 'relationship', scope: 'campaign' as const, default: 'partner' },
+      betrayal_type: { key: 'betrayal_type', scope: 'campaign' as const, default: 'trust violation' },
+      discovery_method: { key: 'discovery_method', scope: 'campaign' as const, default: 'accidentally found' },
+      consequence: { key: 'consequence', scope: 'campaign' as const, default: 'confrontation' },
+      symptom_start: { key: 'symptom_start', scope: 'campaign' as const, default: 'suddenly felt' },
+      misdiagnosis: { key: 'misdiagnosis', scope: 'campaign' as const, default: 'stress' },
+      real_condition: { key: 'real_condition', scope: 'campaign' as const, default: 'actual issue' },
+      villain_type: { key: 'villain_type', scope: 'campaign' as const, default: 'boss' },
+      injustice: { key: 'injustice', scope: 'campaign' as const, default: 'unfair treatment' }
+    }
+    
+    // Initialize with common variables
+    Object.assign(variables, commonVariables)
+    
     // Load global rules
     const globalDir = path.join(process.cwd(), 'prompts', 'global')
     try {
@@ -52,55 +80,101 @@ export async function GET(request: NextRequest) {
     }
     
     // Load client variables
-    const clientPath = path.join(process.cwd(), 'prompts', 'clients', client, '_client.md')
+    const clientDir = path.join(process.cwd(), 'prompts', 'clients', client)
     try {
-      const clientContent = await fs.readFile(clientPath, 'utf-8')
-      const { data: clientData } = matter(clientContent)
+      const files = await fs.readdir(clientDir)
+      const clientFile = files.find(f => f.startsWith('_client_v') && f.endsWith('.md'))
       
-      const metaKeys = ['version', 'status', 'description']
-      Object.entries(clientData).forEach(([key, value]) => {
-        if (!metaKeys.includes(key)) {
-          if (variables[key]) {
-            // Override global
-            variables[key].overrides = { client: value }
-          } else {
-            variables[key] = {
-              key,
-              scope: 'client',
-              default: value
+      if (clientFile) {
+        const clientPath = path.join(clientDir, clientFile)
+        const clientContent = await fs.readFile(clientPath, 'utf-8')
+        const { data: clientData } = matter(clientContent)
+      
+        const metaKeys = ['version', 'status', 'description']
+        
+        // Handle client_variables if present
+        if (clientData.client_variables && typeof clientData.client_variables === 'object') {
+          Object.entries(clientData.client_variables).forEach(([key, value]) => {
+            if (variables[key]) {
+              variables[key].overrides = { client: value }
+            } else {
+              variables[key] = {
+                key,
+                scope: 'client',
+                default: value
+              }
+            }
+          })
+        }
+        
+        Object.entries(clientData).forEach(([key, value]) => {
+          if (!metaKeys.includes(key) && key !== 'client_variables') {
+            if (variables[key]) {
+              // Override global
+              variables[key].overrides = { client: value }
+            } else {
+              variables[key] = {
+                key,
+                scope: 'client',
+                default: value
+              }
             }
           }
-        }
-      })
+        })
+      }
     } catch (err) {
       // Client file might not exist
     }
     
     // Load campaign variables if specified
     if (campaign) {
-      const campaignPath = path.join(process.cwd(), 'prompts', 'clients', client, `${campaign}.md`)
       try {
-        const campaignContent = await fs.readFile(campaignPath, 'utf-8')
-        const { data: campaignData } = matter(campaignContent)
+        const campaignFiles = await fs.readdir(clientDir)
+        const campaignFile = campaignFiles.find(f => f.startsWith(`${campaign}_v`) && f.endsWith('.md'))
         
-        const metaKeys = ['version', 'status', 'description']
-        Object.entries(campaignData).forEach(([key, value]) => {
-          if (!metaKeys.includes(key)) {
-            if (variables[key]) {
-              // Override client or global
-              if (!variables[key].overrides) {
-                variables[key].overrides = {}
+        if (campaignFile) {
+          const campaignPath = path.join(clientDir, campaignFile)
+          const campaignContent = await fs.readFile(campaignPath, 'utf-8')
+          const { data: campaignData } = matter(campaignContent)
+        
+          const metaKeys = ['version', 'status', 'description']
+          
+          // Handle campaign_variables if present
+          if (campaignData.campaign_variables && typeof campaignData.campaign_variables === 'object') {
+            Object.entries(campaignData.campaign_variables).forEach(([key, value]) => {
+              if (variables[key]) {
+                if (!variables[key].overrides) {
+                  variables[key].overrides = {}
+                }
+                variables[key].overrides.campaign = value
+              } else {
+                variables[key] = {
+                  key,
+                  scope: 'campaign',
+                  default: value
+                }
               }
-              variables[key].overrides.campaign = value
-            } else {
-              variables[key] = {
-                key,
-                scope: 'campaign',
-                default: value
+            })
+          }
+          
+          Object.entries(campaignData).forEach(([key, value]) => {
+            if (!metaKeys.includes(key) && key !== 'campaign_variables') {
+              if (variables[key]) {
+                // Override client or global
+                if (!variables[key].overrides) {
+                  variables[key].overrides = {}
+                }
+                variables[key].overrides.campaign = value
+              } else {
+                variables[key] = {
+                  key,
+                  scope: 'campaign',
+                  default: value
+                }
               }
             }
-          }
-        })
+          })
+        }
       } catch (err) {
         // Campaign file might not exist
       }
