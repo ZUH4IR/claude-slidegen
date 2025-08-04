@@ -56,6 +56,31 @@ export async function getPromptFiles(): Promise<PromptFile[]> {
     content: blueprintsContent
   })
   
+  // Get legacy client files
+  const clientsDir = path.join(promptsDir, 'clients')
+  try {
+    const clientDirs = await fs.readdir(clientsDir)
+    for (const clientDir of clientDirs) {
+      const clientPath = path.join(clientsDir, clientDir)
+      const stats = await fs.stat(clientPath)
+      if (stats.isDirectory()) {
+        const clientFiles = await fs.readdir(clientPath)
+        for (const file of clientFiles) {
+          if (file.endsWith('.md')) {
+            const content = await fs.readFile(path.join(clientPath, file), 'utf-8')
+            files.push({
+              name: file,
+              path: `clients/${clientDir}/${file}`,
+              content
+            })
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Clients dir might not exist
+  }
+  
   return files
 }
 

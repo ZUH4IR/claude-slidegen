@@ -1,4 +1,7 @@
+# Story-driven Blueprints
 story_6:
+  name: "Classic Story Arc"
+  description: "Hook → Problem → Agitate → Solution → Product → CTA"
   order:
     - hook
     - problem
@@ -6,11 +9,166 @@ story_6:
     - solution
     - product
     - cta
+  guidelines:
+    hook: "Grab attention with a relatable scenario or shocking statement"
+    problem: "Identify the pain point your audience faces"
+    agitate: "Make the problem feel urgent and personal"
+    solution: "Present the solution as a revelation"
+    product: "Naturally introduce your product as THE solution"
+    cta: "Create urgency with a clear call to action"
 
+story_emotional_7:
+  name: "Emotional Journey"
+  description: "Hook → Emotion → Problem → Empathy → Solution → Transformation → CTA"
+  order:
+    - hook
+    - emotion
+    - problem
+    - empathy
+    - solution
+    - transformation
+    - cta
+
+# Tutorial Blueprints
 tutorial_5:
+  name: "Quick Tutorial"
+  description: "Hook → Step 1 → Step 2 → Step 3 → Product → CTA"
   order:
     - hook
     - step1
     - step2
     - step3
     - product
+    - cta
+  guidelines:
+    hook: "Promise a specific outcome in X steps"
+    step1: "Start with the easiest, most impactful step"
+    step2: "Build momentum with a slightly harder step"
+    step3: "Final step that delivers the promised result"
+    product: "Show how your product makes it even easier"
+
+tutorial_detailed_8:
+  name: "Detailed How-To"
+  description: "Hook → Context → Step 1 → Step 2 → Step 3 → Step 4 → Results → Product"
+  order:
+    - hook
+    - context
+    - step1
+    - step2
+    - step3
+    - step4
+    - results
+    - product
+
+# Comparison Blueprints
+comparison_4:
+  name: "Simple Comparison"
+  description: "Hook → Option A → Option B → Winner → CTA"
+  order:
+    - hook
+    - option_a
+    - option_b
+    - winner
+    - cta
+
+comparison_detailed_6:
+  name: "Detailed Comparison"
+  description: "Hook → Context → Option A → Option B → Option C → Analysis → Winner"
+  order:
+    - hook
+    - context
+    - option_a
+    - option_b
+    - option_c
+    - analysis
+    - winner
+
+# List Blueprints
+listicle_5:
+  name: "Top 5 List"
+  description: "Hook → Item 1 → Item 2 → Item 3 → Item 4 → Item 5"
+  order:
+    - hook
+    - item1
+    - item2
+    - item3
+    - item4
+    - item5
+
+countdown_3:
+  name: "Top 3 Countdown"
+  description: "Hook → Third → Second → First"
+  order:
+    - hook
+    - third_place
+    - second_place
+    - first_place
+
+# Transformation Blueprints
+before_after_4:
+  name: "Before & After"
+  description: "Hook → Before → Process → After → CTA"
+  order:
+    - hook
+    - before
+    - process
+    - after
+    - cta
+
+transformation_journey_7:
+  name: "Full Transformation"
+  description: "Hook → Starting Point → Challenge → Turning Point → Process → Results → Inspiration → CTA"
+  order:
+    - hook
+    - starting_point
+    - challenge
+    - turning_point
+    - process
+    - results
+    - inspiration
+    - cta
+
+# Question-based Blueprints
+myth_buster_5:
+  name: "Myth Buster"
+  description: "Hook → Myth → Why It's Wrong → Truth → Proof → CTA"
+  order:
+    - hook
+    - myth
+    - debunk
+    - truth
+    - proof
+    - cta
+
+faq_style_6:
+  name: "FAQ Style"
+  description: "Hook → Question 1 → Answer 1 → Question 2 → Answer 2 → Summary"
+  order:
+    - hook
+    - question1
+    - answer1
+    - question2
+    - answer2
+    - summary
+
+# Engagement Blueprints
+challenge_5:
+  name: "Challenge Format"
+  description: "Hook → Challenge → Rules → Example → Your Turn → CTA"
+  order:
+    - hook
+    - challenge
+    - rules
+    - example
+    - your_turn
+    - cta
+
+poll_style_4:
+  name: "Poll/Quiz Style"
+  description: "Hook → Question → Options → Reveal → CTA"
+  order:
+    - hook
+    - question
+    - options
+    - reveal
+    - cta

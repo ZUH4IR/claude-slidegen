@@ -1,33 +1,30 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
+import { Slider } from '@/components/ui/slider'
+import { Textarea } from '@/components/ui/textarea'
 import {
-  Box,
-  Grid,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  FormControl,
-  InputLabel,
   Select,
-  MenuItem,
-  Slider,
-  FormControlLabel,
-  Switch,
-  Chip,
-  Alert,
-  CircularProgress,
-  IconButton,
-  Divider,
-} from '@mui/material'
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
-  ContentCopy,
+  Copy,
   Download,
   Edit,
-  Delete,
-  Add,
-} from '@mui/icons-material'
+  Trash2,
+  Plus,
+  Loader2,
+} from 'lucide-react'
 import { GenerationConfig, GenerationResult } from '@/lib/types'
 
 interface PromptOptions {
@@ -108,7 +105,10 @@ export default function GeneratorTab() {
       const response = await fetch('/api/generate/csv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config, hooks })
+        body: JSON.stringify({
+          ...config,
+          hooks
+        })
       })
       const data = await response.json()
       if (data.error) throw new Error(data.error)
@@ -142,13 +142,14 @@ export default function GeneratorTab() {
 
   const downloadCSV = () => {
     if (!result?.csv) return
+    
     const blob = new Blob([result.csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
+    const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `slidegen-${Date.now()}.csv`
+    a.download = `slidegen_${Date.now()}.csv`
     a.click()
-    URL.revokeObjectURL(url)
+    window.URL.revokeObjectURL(url)
   }
 
   const resetToConfig = () => {
@@ -160,244 +161,274 @@ export default function GeneratorTab() {
 
   if (step === 'config') {
     return (
-      <Box>
-        <Typography variant="h5" gutterBottom>
-          Generation Configuration
-        </Typography>
-        
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-        
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>Basic Settings</Typography>
-              
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Brand</InputLabel>
-                <Select
-                  value={config.brandSlug}
-                  onChange={(e) => setConfig({ ...config, brandSlug: e.target.value })}
-                >
-                  {options.brands.map(brand => (
-                    <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-                  ))}
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Basic Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="brand">Brand</Label>
+                <Select value={config.brandSlug} onValueChange={(value) => setConfig({...config, brandSlug: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select brand" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {options.brands.map((brand) => (
+                      <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
-              </FormControl>
-              
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Campaign</InputLabel>
-                <Select
-                  value={config.campSlug}
-                  onChange={(e) => setConfig({ ...config, campSlug: e.target.value })}
-                >
-                  {options.campaigns.map(campaign => (
-                    <MenuItem key={campaign} value={campaign}>{campaign}</MenuItem>
-                  ))}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="campaign">Campaign</Label>
+                <Select value={config.campSlug} onValueChange={(value) => setConfig({...config, campSlug: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select campaign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {options.campaigns.map((campaign) => (
+                      <SelectItem key={campaign} value={campaign}>{campaign}</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
-              </FormControl>
-              
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Blueprint</InputLabel>
-                <Select
-                  value={config.blueprint}
-                  onChange={(e) => setConfig({ ...config, blueprint: e.target.value })}
-                >
-                  {options.blueprints.map(blueprint => (
-                    <MenuItem key={blueprint} value={blueprint}>{blueprint}</MenuItem>
-                  ))}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="blueprint">Blueprint</Label>
+                <Select value={config.blueprint} onValueChange={(value) => setConfig({...config, blueprint: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select blueprint" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {options.blueprints.map((blueprint) => (
+                      <SelectItem key={blueprint} value={blueprint}>{blueprint}</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
-              </FormControl>
-              
-              <TextField
-                fullWidth
-                label="Topic"
-                value={config.topic}
-                onChange={(e) => setConfig({ ...config, topic: e.target.value })}
-                sx={{ mb: 2 }}
-                multiline
-                rows={2}
-              />
-              
-              <TextField
-                fullWidth
-                label="Persona"
-                value={config.persona}
-                onChange={(e) => setConfig({ ...config, persona: e.target.value })}
-                sx={{ mb: 2 }}
-              />
-              
-              <TextField
-                fullWidth
-                label="Hook Appeal"
-                value={config.hookAppeal}
-                onChange={(e) => setConfig({ ...config, hookAppeal: e.target.value })}
-                sx={{ mb: 2 }}
-              />
-            </Paper>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>Advanced Settings</Typography>
-              
-              <Typography gutterBottom>Rows: {config.rows}</Typography>
-              <Slider
-                value={config.rows}
-                onChange={(_, value) => setConfig({ ...config, rows: value as number })}
-                min={1}
-                max={15}
-                marks
-                sx={{ mb: 3 }}
-              />
-              
-              <Typography gutterBottom>Hook Character Cap: {config.charCapHook}</Typography>
-              <Slider
-                value={config.charCapHook}
-                onChange={(_, value) => setConfig({ ...config, charCapHook: value as number })}
-                min={40}
-                max={120}
-                sx={{ mb: 3 }}
-              />
-              
-              <Typography gutterBottom>Product Slide: {config.productSlide}</Typography>
-              <Slider
-                value={config.productSlide}
-                onChange={(_, value) => setConfig({ ...config, productSlide: value as number })}
-                min={4}
-                max={6}
-                marks
-                sx={{ mb: 3 }}
-              />
-              
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={config.addSelfAwareJoke}
-                    onChange={(e) => setConfig({ ...config, addSelfAwareJoke: e.target.checked })}
-                  />
-                }
-                label="Add Self-Aware Joke"
-              />
-            </Paper>
-          </Grid>
-        </Grid>
-        
-        <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Button
-            variant="contained"
-            size="large"
-            onClick={generateHooks}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="topic">Topic</Label>
+                <Textarea
+                  id="topic"
+                  value={config.topic}
+                  onChange={(e) => setConfig({...config, topic: e.target.value})}
+                  placeholder="Enter your topic..."
+                  rows={2}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="persona">Persona</Label>
+                <Input
+                  id="persona"
+                  value={config.persona}
+                  onChange={(e) => setConfig({...config, persona: e.target.value})}
+                  placeholder="Enter persona..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="hookAppeal">Hook Appeal</Label>
+                <Input
+                  id="hookAppeal"
+                  value={config.hookAppeal}
+                  onChange={(e) => setConfig({...config, hookAppeal: e.target.value})}
+                  placeholder="Enter hook appeal..."
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Advanced Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Rows: {config.rows}</Label>
+                <Slider
+                  value={[config.rows]}
+                  onValueChange={(value) => setConfig({...config, rows: value[0]})}
+                  max={15}
+                  min={1}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Hook Character Cap: {config.charCapHook}</Label>
+                <Slider
+                  value={[config.charCapHook]}
+                  onValueChange={(value) => setConfig({...config, charCapHook: value[0]})}
+                  max={120}
+                  min={40}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Product Slide: {config.productSlide}</Label>
+                <Slider
+                  value={[config.productSlide]}
+                  onValueChange={(value) => setConfig({...config, productSlide: value[0]})}
+                  max={6}
+                  min={4}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="selfAwareJoke"
+                  checked={config.addSelfAwareJoke}
+                  onCheckedChange={(checked) => setConfig({...config, addSelfAwareJoke: checked})}
+                />
+                <Label htmlFor="selfAwareJoke">Add Self-Aware Joke</Label>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="flex justify-center">
+          <Button 
+            onClick={generateHooks} 
             disabled={loading}
-            startIcon={loading ? <CircularProgress size={20} /> : undefined}
+            size="lg"
+            className="px-8"
           >
-            {loading ? 'Generating...' : 'Generate Hooks'}
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              'Generate Hooks'
+            )}
           </Button>
-        </Box>
-      </Box>
+        </div>
+      </div>
     )
   }
-  
+
   if (step === 'hooks') {
     return (
-      <Box>
-        <Typography variant="h5" gutterBottom>
-          Edit Hooks
-        </Typography>
-        
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-        
-        <Paper sx={{ p: 3, mb: 3 }}>
-          {hooks.map((hook, index) => (
-            <Box key={index} sx={{ mb: 2, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-              <TextField
-                fullWidth
-                label={`Hook ${index + 1}`}
-                value={hook}
-                onChange={(e) => updateHook(index, e.target.value)}
-                multiline
-                rows={2}
-                helperText={`${hook.length}/${config.charCapHook} characters`}
-                error={hook.length > config.charCapHook}
-              />
-              <IconButton color="error" onClick={() => removeHook(index)}>
-                <Delete />
-              </IconButton>
-            </Box>
-          ))}
-          
-          <Button startIcon={<Add />} onClick={addHook} sx={{ mt: 1 }}>
-            Add Hook
-          </Button>
-        </Paper>
-        
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-          <Button variant="outlined" onClick={resetToConfig}>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Review & Edit Hooks</h2>
+          <Button variant="outline" onClick={resetToConfig}>
             Back to Config
           </Button>
-          <Button
-            variant="contained"
-            onClick={generateCSV}
-            disabled={loading || hooks.length === 0}
-            startIcon={loading ? <CircularProgress size={20} /> : undefined}
-          >
-            {loading ? 'Generating...' : 'Generate CSV'}
+        </div>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-4">
+          {hooks.map((hook, index) => (
+            <Card key={index}>
+              <CardContent className="pt-6">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Badge variant="secondary">Hook {index + 1}</Badge>
+                                     <Button
+                     variant="ghost"
+                     size="sm"
+                     onClick={() => removeHook(index)}
+                   >
+                     <Trash2 className="h-4 w-4" />
+                   </Button>
+                </div>
+                <Textarea
+                  value={hook}
+                  onChange={(e) => updateHook(index, e.target.value)}
+                  placeholder="Edit hook..."
+                  rows={3}
+                />
+              </CardContent>
+            </Card>
+          ))}
+
+          <Button variant="outline" onClick={addHook} className="w-full">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Hook
           </Button>
-        </Box>
-      </Box>
+        </div>
+
+        <div className="flex justify-center space-x-4">
+          <Button variant="outline" onClick={resetToConfig}>
+            Back to Config
+          </Button>
+          <Button 
+            onClick={generateCSV} 
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating CSV...
+              </>
+            ) : (
+              'Generate CSV'
+            )}
+          </Button>
+        </div>
+      </div>
     )
   }
-  
-  return (
-    <Box>
-      <Typography variant="h5" gutterBottom>
-        Generated CSV
-      </Typography>
-      
-      {result?.errors && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          Validation errors: {result.errors.join(', ')}
-        </Alert>
-      )}
-      
-      {!result?.errors && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          ✅ CSV validation passed!
-        </Alert>
-      )}
-      
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">CSV Output</Typography>
-          <Box>
-            <IconButton onClick={() => copyToClipboard(result?.csv || '')}>
-              <ContentCopy />
-            </IconButton>
-            <IconButton onClick={downloadCSV}>
-              <Download />
-            </IconButton>
-          </Box>
-        </Box>
-        
-        <TextField
-          fullWidth
-          multiline
-          rows={20}
-          value={result?.csv || ''}
-          InputProps={{
-            readOnly: true,
-            sx: { fontFamily: 'monospace', fontSize: '0.875rem' }
-          }}
-        />
-      </Paper>
-      
-      <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-        <Button variant="outlined" onClick={resetToConfig}>
-          Start Over
-        </Button>
-        <Button variant="outlined" onClick={() => setStep('hooks')}>
-          Edit Hooks
-        </Button>
-      </Box>
-    </Box>
-  )
+
+  if (step === 'csv' && result) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Generated CSV</h2>
+          <div className="flex space-x-2">
+            <Button variant="outline" onClick={resetToConfig}>
+              Start Over
+            </Button>
+            <Button onClick={downloadCSV}>
+              <Download className="mr-2 h-4 w-4" />
+              Download CSV
+            </Button>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>CSV Content</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-muted p-4 rounded-md">
+              <pre className="text-sm whitespace-pre-wrap">{result.csv}</pre>
+            </div>
+                         <div className="flex justify-end mt-4">
+               <Button
+                 variant="outline"
+                 onClick={() => copyToClipboard(result.csv || '')}
+               >
+                 <Copy className="mr-2 h-4 w-4" />
+                 Copy to Clipboard
+               </Button>
+             </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return null
 }
