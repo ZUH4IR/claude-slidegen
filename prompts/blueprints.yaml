@@ -1,0 +1,16 @@
+story_6:
+  order:
+    - hook
+    - problem
+    - agitate
+    - solution
+    - product
+    - cta
+
+tutorial_5:
+  order:
+    - hook
+    - step1
+    - step2
+    - step3
+    - product
