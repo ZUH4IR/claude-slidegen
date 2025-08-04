@@ -12,8 +12,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
 interface PromptFile {
@@ -288,21 +288,21 @@ ${campaign.contentPillars.map((p, i) => `${i + 1}. ${p}`).join('\n')}
 ${campaign.ctaVariations.map(c => `- ${c}`).join('\n')}`
   }
 
-  const addArrayItem = (array: string[], setter: (value: any) => void, key: string) => {
+  const addArrayItem = (_array: string[], setter: (value: any) => void, key: string) => {
     setter((prev: any) => ({
       ...prev,
       [key]: [...prev[key], '']
     }))
   }
 
-  const updateArrayItem = (array: string[], index: number, value: string, setter: (value: any) => void, key: string) => {
+  const updateArrayItem = (_array: string[], index: number, value: string, setter: (value: any) => void, key: string) => {
     setter((prev: any) => ({
       ...prev,
       [key]: prev[key].map((item: string, i: number) => i === index ? value : item)
     }))
   }
 
-  const removeArrayItem = (array: string[], index: number, setter: (value: any) => void, key: string) => {
+  const removeArrayItem = (_array: string[], index: number, setter: (value: any) => void, key: string) => {
     setter((prev: any) => ({
       ...prev,
       [key]: prev[key].filter((_: string, i: number) => i !== index)
@@ -759,7 +759,7 @@ ${campaign.ctaVariations.map(c => `- ${c}`).join('\n')}`
                       <div className="space-y-2 text-sm">
                         {structuredCampaign.hookTemplates.map((hook, index) => (
                           <div key={index} className="p-2 bg-white rounded border">
-                            {hook.replace(/{(\w+)}/g, (match, variable) => {
+                            {hook.replace(/{(\w+)}/g, (_match, variable) => {
                               const samples: { [key: string]: string } = {
                                 shocking_fact: "90% of people",
                                 topic: "productivity",
@@ -871,7 +871,7 @@ ${campaign.ctaVariations.map(c => `- ${c}`).join('\n')}`
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder="Ask about your prompts or upload CSV data..."
-                onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
               />
               <Button onClick={sendChatMessage}>
                 <Send className="h-4 w-4" />

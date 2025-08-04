@@ -1,5 +1,5 @@
-import GeneratorTab from '@/components/GeneratorTab'
+import { redirect } from 'next/navigation'
 
-export default function Home() {
-  return <GeneratorTab />
+export default function HomePage() {
+  redirect('/generator')
 }

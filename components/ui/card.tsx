@@ -39,6 +39,19 @@ const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
 )
 CardTitle.displayName = 'CardTitle'
 
+interface CardDescriptionProps extends React.HTMLAttributes<HTMLParagraphElement> {}
+
+const CardDescription = React.forwardRef<HTMLParagraphElement, CardDescriptionProps>(
+  ({ className = '', ...props }, ref) => (
+    <p
+      ref={ref}
+      className={`text-sm text-muted-foreground ${className}`}
+      {...props}
+    />
+  )
+)
+CardDescription.displayName = 'CardDescription'
+
 interface CardContentProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 const CardContent = React.forwardRef<HTMLDivElement, CardContentProps>(
@@ -48,4 +61,4 @@ const CardContent = React.forwardRef<HTMLDivElement, CardContentProps>(
 )
 CardContent.displayName = 'CardContent'
 
-export { Card, CardHeader, CardTitle, CardContent } 
+export { Card, CardHeader, CardTitle, CardDescription, CardContent } 

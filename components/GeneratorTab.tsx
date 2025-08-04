@@ -20,7 +20,6 @@ import {
 import {
   Copy,
   Download,
-  Edit,
   Trash2,
   Plus,
   Loader2,

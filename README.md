@@ -2,6 +2,16 @@
 
 > TikTok-style CSV copy generator powered by Anthropic Claude + Next.js 14
 
+## 🔑 Setup Required
+
+**You must add your Anthropic API key to `.env.local` for generation to work:**
+
+```bash
+# Copy the example file and add your key
+cp .env.example .env.local
+# Edit .env.local and add your API key from https://console.anthropic.com/settings/keys
+```
+
 ---
 
 ## ✨ Features

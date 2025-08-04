@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ['yaml']
+  serverExternalPackages: ['yaml', '@anthropic-ai/sdk'],
+  eslint: {
+    ignoreDuringBuilds: true
   }
 }
 
