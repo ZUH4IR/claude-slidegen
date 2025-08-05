@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import matter from 'gray-matter'
 import { VariableLegend } from '@/components/VariableLegend'
-import { FolderTree } from '@/components/FolderTree'
+import { PromptTree } from '@/components/PromptTree'
 import { ColorCodedEditor } from '@/components/ColorCodedEditor'
 import { VersionDiff } from '@/components/VersionDiff'
 import { PromptPreview } from '@/components/PromptPreview'
@@ -58,6 +58,7 @@ export default function PromptsPage() {
   const [isGlobalRules, setIsGlobalRules] = useState(false)
   const [isViewingBlueprint, setIsViewingBlueprint] = useState(false)
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set())
+  const [treeData, setTreeData] = useState<any[]>([])
   const [viewMode, setViewMode] = useState<'form' | 'raw' | 'json'>('form')
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPreview, setShowPreview] = useState(true)
@@ -354,6 +355,61 @@ export default function PromptsPage() {
       const res = await fetch('/api/prompts/clients')
       const data = await res.json()
       setClients(data.clients)
+      
+      // Also load tree data
+      const treeRes = await fetch('/api/prompts/tree')
+      const treeJson = await treeRes.json()
+      
+      // Transform tree data for PromptTree component
+      const transformedTree = []
+      
+      // Add Universal section
+      if (treeJson.global && treeJson.global.length > 0) {
+        transformedTree.push({
+          name: 'Universal',
+          type: 'section',
+          children: treeJson.global.map((item: any) => ({
+            name: item.name.replace('.md', ''),
+            type: 'file',
+            hasPrompt: true
+          }))
+        })
+      }
+      
+      // Add Templates section
+      if (treeJson.blueprints && treeJson.blueprints.length > 0) {
+        transformedTree.push({
+          name: 'Templates', 
+          type: 'section',
+          children: treeJson.blueprints.map((item: any) => ({
+            name: item.name.replace('.md', ''),
+            type: 'template',
+            hasPrompt: true
+          }))
+        })
+      }
+      
+      // Add Clients section
+      if (treeJson.clients) {
+        const clientNodes = Object.entries(treeJson.clients).map(([clientName, clientData]: [string, any]) => ({
+          name: clientName,
+          type: 'brand',
+          hasPrompt: clientData.hasClient,
+          children: clientData.campaigns?.map((campaign: string) => ({
+            name: campaign,
+            type: 'campaign',
+            hasPrompt: true
+          })) || []
+        }))
+        
+        transformedTree.push({
+          name: 'Clients',
+          type: 'section',
+          children: clientNodes
+        })
+      }
+      
+      setTreeData(transformedTree)
     } catch (err) {
       console.error('Failed to load clients:', err)
     }
@@ -963,44 +1019,21 @@ export default function PromptsPage() {
     <div className="flex h-full">
       {/* Sidebar */}
       <div className="w-80 border-r bg-muted/10 overflow-y-auto">
-        <FolderTree
-          selectedPath={selectedPath}
-          onSelect={(path, type, metadata) => {
+        <PromptTree
+          data={treeData}
+          onSelect={(type, brand, campaign) => {
             if (type === 'global') {
               handleEditGlobalRules()
-            } else if (type === 'blueprint') {
-              // Handle blueprint viewing
-              const blueprintName = path.split('/').pop()
-              if (blueprintName) {
-                handleViewBlueprint(blueprintName)
+            } else if (type === 'template') {
+              // Handle blueprint/template viewing
+              if (brand) {
+                handleViewBlueprint(brand)
               }
-            } else if (type === 'client' && metadata?.clientName) {
-              handleEditClient(metadata.clientName)
-            } else if (type === 'campaign' && metadata?.clientName && metadata?.campaignName) {
-              handleEditCampaign(metadata.clientName, metadata.campaignName)
+            } else if (type === 'brand' && brand) {
+              handleEditClient(brand)
+            } else if (type === 'campaign' && brand && campaign) {
+              handleEditCampaign(brand, campaign)
             }
-          }}
-          onNewClient={() => {
-            resetForm()
-            setIsNewClient(true)
-          }}
-          onNewCampaign={(clientName) => {
-            resetForm()
-            setSelectedClient(clientName)
-            setIsNewCampaign(true)
-          }}
-          onNewGlobalRule={() => {
-            resetForm()
-            setIsGlobalRules(true)
-            setSelectedType('new')
-            setSelectedPath('global/new-rule')
-          }}
-          onNewBlueprint={() => {
-            // For now, show a toast that blueprints are coming soon
-            toast({
-              title: 'Coming Soon',
-              description: 'Blueprint creation will be available in the next update',
-            })
           }}
           onRefresh={loadClients}
         />
@@ -1286,39 +1319,6 @@ export default function PromptsPage() {
                             </div>
                           </div>
                           
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <Label htmlFor="tracked-accounts">Tracked TikTok Accounts</Label>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  const params = new URLSearchParams()
-                                  if (selectedClient) params.append('client', selectedClient)
-                                  if (campaignName) params.append('campaign', campaignName)
-                                  if (trackedAccounts.length > 0) {
-                                    params.append('accounts', trackedAccounts.join('\n'))
-                                  }
-                                  window.open(`/music-sourcing?${params.toString()}`, '_blank')
-                                }}
-                              >
-                                <Music className="h-3 w-3 mr-1" />
-                                Source Music
-                              </Button>
-                            </div>
-                            <Textarea
-                              id="tracked-accounts"
-                              value={trackedAccounts.join('\n')}
-                              onChange={(e) => setTrackedAccounts(
-                                e.target.value.split('\n').map(a => a.trim()).filter(Boolean)
-                              )}
-                              placeholder="@account1&#10;@account2&#10;@account3"
-                              className="min-h-[80px] font-mono text-sm"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Enter TikTok accounts to track for music trends (one per line)
-                            </p>
-                          </div>
                           
                           {frontmatter?.saved_tracks && frontmatter.saved_tracks.length > 0 && (
                             <div className="space-y-2">

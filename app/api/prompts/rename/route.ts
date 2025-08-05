@@ -1,43 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { promises as fs } from 'fs'
+import fs from 'fs/promises'
 import path from 'path'
 
 export async function POST(request: NextRequest) {
   try {
-    const { client, oldName, newName } = await request.json()
-    
-    if (!client || !oldName || !newName) {
+    const { type, oldName, newName, brand } = await request.json()
+    const promptsDir = path.join(process.cwd(), 'prompts')
+
+    if (!newName || newName === oldName) {
       return NextResponse.json(
-        { error: 'Missing required parameters' },
+        { error: 'Invalid new name' },
         { status: 400 }
       )
     }
-    
-    const clientDir = path.join(process.cwd(), 'prompts', 'clients', client)
-    
-    // Find all files for the old campaign
-    const files = await fs.readdir(clientDir)
-    const campaignFiles = files.filter(f => 
-      f.startsWith(`${oldName}_v`) && f.endsWith('.md')
-    )
-    
-    // Rename each file
-    for (const file of campaignFiles) {
-      const oldPath = path.join(clientDir, file)
-      const newFileName = file.replace(`${oldName}_v`, `${newName}_v`)
-      const newPath = path.join(clientDir, newFileName)
+
+    if (type === 'brand') {
+      const oldPath = path.join(promptsDir, 'clients', oldName)
+      const newPath = path.join(promptsDir, 'clients', newName)
       
+      // Check if old path exists
+      try {
+        await fs.stat(oldPath)
+      } catch {
+        return NextResponse.json(
+          { error: 'Brand not found' },
+          { status: 404 }
+        )
+      }
+      
+      // Check if new path already exists
+      try {
+        await fs.stat(newPath)
+        return NextResponse.json(
+          { error: 'A brand with this name already exists' },
+          { status: 409 }
+        )
+      } catch {
+        // Good, new path doesn't exist
+      }
+      
+      // Rename the directory
       await fs.rename(oldPath, newPath)
+      
+    } else if (type === 'campaign' && brand) {
+      const brandDir = path.join(promptsDir, 'clients', brand)
+      const files = await fs.readdir(brandDir)
+      
+      // Find all files for this campaign
+      const campaignFiles = files.filter(f => 
+        f.startsWith(`${oldName}_v`) && f.endsWith('.md')
+      )
+      
+      // Check if new campaign name already exists
+      const newCampaignFiles = files.filter(f => 
+        f.startsWith(`${newName}_v`) && f.endsWith('.md')
+      )
+      
+      if (newCampaignFiles.length > 0) {
+        return NextResponse.json(
+          { error: 'A campaign with this name already exists' },
+          { status: 409 }
+        )
+      }
+      
+      // Rename all campaign files
+      for (const file of campaignFiles) {
+        const version = file.match(/_v(\d+)\.md$/)?.[1]
+        if (version) {
+          const oldPath = path.join(brandDir, file)
+          const newPath = path.join(brandDir, `${newName}_v${version}.md`)
+          await fs.rename(oldPath, newPath)
+        }
+      }
     }
-    
-    return NextResponse.json({ 
-      success: true, 
-      renamed: campaignFiles.length 
-    })
+
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error renaming campaign:', error)
+    console.error('Rename error:', error)
     return NextResponse.json(
-      { error: 'Failed to rename campaign' },
+      { error: 'Failed to rename' },
       { status: 500 }
     )
   }

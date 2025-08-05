@@ -6,18 +6,32 @@ import matter from 'gray-matter'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const client = searchParams.get('client')
+    const brand = searchParams.get('brand')
     const type = searchParams.get('type')
     const campaign = searchParams.get('campaign')
     
-    if (!client || !type) {
+    if (!type) {
       return NextResponse.json(
         { error: 'Missing required parameters' },
         { status: 400 }
       )
     }
     
-    const clientDir = path.join(process.cwd(), 'prompts', 'clients', client)
+    const promptsDir = path.join(process.cwd(), 'prompts')
+    let targetDir = ''
+    
+    if (type === 'brand' && brand) {
+      targetDir = path.join(promptsDir, 'clients', brand)
+    } else if (type === 'campaign' && brand) {
+      targetDir = path.join(promptsDir, 'clients', brand)
+    } else {
+      return NextResponse.json(
+        { error: 'Invalid type or missing brand' },
+        { status: 400 }
+      )
+    }
+    
+    const clientDir = targetDir
     const files = await fs.readdir(clientDir)
     
     let versionFiles: string[] = []
@@ -51,7 +65,13 @@ export async function GET(request: NextRequest) {
     // Sort by version number descending
     versions.sort((a, b) => b.version - a.version)
     
-    return NextResponse.json({ versions })
+    // Get current active version (for now, assume highest version is active)
+    const current = versions.length > 0 ? `v${versions[0].version}` : 'v1'
+    
+    return NextResponse.json({ 
+      versions: versions.map(v => `v${v.version}`),
+      current 
+    })
   } catch (error) {
     console.error('Error loading versions:', error)
     return NextResponse.json(
