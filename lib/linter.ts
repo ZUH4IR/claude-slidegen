@@ -36,7 +36,19 @@ export const rules: LintRule[] = [
       const lines = content.split('\n')
       
       lines.forEach((line, index) => {
-        if (line.length > maxLength && !line.startsWith('#')) {
+        // Skip lines that are URLs, YAML frontmatter, or start with certain prefixes
+        const skipPatterns = [
+          /^https?:\/\//,  // URLs
+          /^\s*-?\s*(sound_url|share_url|play_url|url_list):/,  // YAML URL fields
+          /^\s*>-?\s*/,  // YAML multiline strings
+          /^---$/,  // YAML frontmatter delimiters
+          /^\s*saved_tracks:/,  // saved_tracks field
+          /^\s*sourceVideos:/  // sourceVideos field
+        ]
+        
+        const shouldSkip = skipPatterns.some(pattern => pattern.test(line))
+        
+        if (line.length > maxLength && !line.startsWith('#') && !shouldSkip) {
           issues.push({
             ruleId: 'line-length',
             severity: 'warning',

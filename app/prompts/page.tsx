@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Plus, Save, FolderOpen, FileText, ChevronRight, Edit, RefreshCw, GitBranch, History, Code, Eye, Copy, Link, ChevronDown, ChevronUp, Music } from 'lucide-react'
@@ -93,6 +94,8 @@ export default function PromptsPage() {
   const [rageBaitIntensity, setRageBaitIntensity] = useState('50')
   const [campaignNotes, setCampaignNotes] = useState('')
   const [trackedAccounts, setTrackedAccounts] = useState<string[]>([])
+  const [clientAccounts, setClientAccounts] = useState<string[]>([])
+  const [selectedCampaignAccounts, setSelectedCampaignAccounts] = useState<string[]>([])
 
   // Preview variables
   const [previewVariables, setPreviewVariables] = useState({
@@ -158,10 +161,11 @@ export default function PromptsPage() {
 
   // Sync form fields with raw prompt
   useEffect(() => {
-    if (viewMode === 'form') {
+    // Only update if we're actually editing something
+    if (viewMode === 'form' && (isNewClient || isNewCampaign || isGlobalRules)) {
       updateRawFromForm()
     }
-  }, [clientVoice, integrationRule, imageBuckets, toneStrength, ctaVariant, bannedWords, audience, rageBaitIntensity, campaignNotes, trackedAccounts, dynamicFields])
+  }, [clientVoice, integrationRule, imageBuckets, toneStrength, ctaVariant, bannedWords, audience, rageBaitIntensity, campaignNotes, trackedAccounts, clientAccounts, selectedCampaignAccounts, dynamicFields, viewMode, isNewClient, isNewCampaign, isGlobalRules])
   
   // Run linter on content change
   useEffect(() => {
@@ -190,51 +194,78 @@ export default function PromptsPage() {
   }, [rawPrompt, bannedWords, isGlobalRules, isNewClient, isNewCampaign, toast])
 
   const updateRawFromForm = () => {
-    if (isGlobalRules) {
-      let content = ''
-      
-      // Add dynamic fields
-      dynamicFields.forEach(field => {
-        content += `\n\n## ${field.label}\n${field.value}`
-      })
-      
-      setRawPrompt(content.trim())
-    } else if (isNewClient) {
-      const fm = {
-        version: selectedType === 'edit' ? currentVersion : 1,
-        status: 'active',
-        image_buckets: imageBuckets,
-        tone_strength: parseInt(toneStrength),
-        cta_variant: ctaVariant,
-        banned_words: bannedWords.split(',').map(w => w.trim()).filter(Boolean)
+    try {
+      if (isGlobalRules) {
+        let content = ''
+        
+        // Add dynamic fields
+        dynamicFields.forEach(field => {
+          content += `\n\n## ${field.label}\n${field.value}`
+        })
+        
+        setRawPrompt(content.trim())
+      } else if (isNewClient) {
+        const fm: any = {
+          version: selectedType === 'edit' ? currentVersion : 1,
+          status: 'active'
+        }
+        
+        // Only add fields that have values
+        if (imageBuckets) fm.image_buckets = imageBuckets
+        if (toneStrength) fm.tone_strength = parseInt(toneStrength) || 80
+        if (ctaVariant) fm.cta_variant = ctaVariant
+        if (bannedWords) fm.banned_words = bannedWords.split(',').map(w => w.trim()).filter(Boolean)
+        if (clientAccounts && clientAccounts.length > 0) fm.tiktok_accounts = clientAccounts
+        
+        // Clean the object to remove any undefined values
+        Object.keys(fm).forEach(key => {
+          if (fm[key] === undefined || fm[key] === null) {
+            delete fm[key]
+          }
+        })
+        
+        let content = ''
+        if (clientVoice) content += `voice: ${clientVoice}\n`
+        if (integrationRule) content += `integration_rule: ${integrationRule}\n`
+        
+        // Add dynamic fields
+        dynamicFields.forEach(field => {
+          content += `\n\n## ${field.label}\n${field.value}`
+        })
+        
+        setRawPrompt(matter.stringify(content.trim(), fm))
+      } else if (isNewCampaign) {
+        const fm: any = {
+          version: selectedType === 'edit' ? currentVersion : 1,
+          status: 'active'
+        }
+        
+        // Only add fields that have values
+        if (audience) fm.audience = audience
+        if (rageBaitIntensity) fm.rage_bait_intensity = parseInt(rageBaitIntensity) || 50
+        if (campaignNotes) fm.notes = campaignNotes
+        if (trackedAccounts && trackedAccounts.length > 0) fm.tracked_accounts = trackedAccounts
+        if (selectedCampaignAccounts && selectedCampaignAccounts.length > 0) fm.assigned_accounts = selectedCampaignAccounts
+        
+        // Clean the object to remove any undefined values
+        Object.keys(fm).forEach(key => {
+          if (fm[key] === undefined || fm[key] === null) {
+            delete fm[key]
+          }
+        })
+        
+        let content = campaignNotes || ''
+        
+        // Add dynamic fields
+        dynamicFields.forEach(field => {
+          content += `\n\n## ${field.label}\n${field.value}`
+        })
+        
+        setRawPrompt(matter.stringify(content, fm))
       }
-      
-      let content = `voice: ${clientVoice}\nintegration_rule: ${integrationRule}`
-      
-      // Add dynamic fields
-      dynamicFields.forEach(field => {
-        content += `\n\n## ${field.label}\n${field.value}`
-      })
-      
-      setRawPrompt(matter.stringify(content, fm))
-    } else if (isNewCampaign) {
-      const fm = {
-        version: selectedType === 'edit' ? currentVersion : 1,
-        status: 'active',
-        audience,
-        rage_bait_intensity: parseInt(rageBaitIntensity),
-        notes: campaignNotes,
-        tracked_accounts: trackedAccounts.length > 0 ? trackedAccounts : undefined
-      }
-      
-      let content = campaignNotes
-      
-      // Add dynamic fields
-      dynamicFields.forEach(field => {
-        content += `\n\n## ${field.label}\n${field.value}`
-      })
-      
-      setRawPrompt(matter.stringify(content, fm))
+    } catch (error) {
+      console.error('Error in updateRawFromForm:', error)
+      // Don't update if there's an error
     }
   }
 
@@ -318,11 +349,18 @@ export default function PromptsPage() {
       if (frontmatter.tracked_accounts) {
         setTrackedAccounts(Array.isArray(frontmatter.tracked_accounts) ? frontmatter.tracked_accounts : [])
       }
+      if (frontmatter.tiktok_accounts) {
+        setClientAccounts(Array.isArray(frontmatter.tiktok_accounts) ? frontmatter.tiktok_accounts : [])
+      }
+      if (frontmatter.assigned_accounts) {
+        setSelectedCampaignAccounts(Array.isArray(frontmatter.assigned_accounts) ? frontmatter.assigned_accounts : [])
+      }
       
       // Generate form fields for any non-standard frontmatter keys
       const standardKeys = ['version', 'status', 'description', 'client_voice', 'integration_rule', 
                            'image_buckets', 'tone_strength', 'cta_variant', 'banned_words', 
-                           'audience', 'ragebait_intensity', 'rage_bait_intensity', 'campaign_notes', 'tracked_accounts']
+                           'audience', 'ragebait_intensity', 'rage_bait_intensity', 'campaign_notes', 
+                           'tracked_accounts', 'tiktok_accounts', 'assigned_accounts']
       
       const generatedFields: FormField[] = []
       Object.entries(frontmatter).forEach(([key, value]) => {
@@ -475,10 +513,26 @@ export default function PromptsPage() {
       console.log('[handleEditClient] Content:', content)
       console.log('[handleEditClient] Frontmatter:', frontmatter)
       
+      // Check if content already contains frontmatter (double-encoded issue)
+      let finalContent = content
+      let finalFrontmatter = frontmatter
+      
+      // If content starts with ---, it means it's double-encoded
+      if (content.trim().startsWith('---')) {
+        const parsed = matter(content)
+        finalContent = parsed.content
+        finalFrontmatter = { ...frontmatter, ...parsed.data }
+      }
+      
       // Set raw prompt - even if content is empty, we should show the frontmatter
-      const rawContent = matter.stringify(content, frontmatter)
+      const rawContent = matter.stringify(finalContent, finalFrontmatter)
       console.log('[handleEditClient] Raw content:', rawContent)
       setRawPrompt(rawContent)
+      
+      // Load TikTok accounts from frontmatter
+      if (finalFrontmatter.tiktok_accounts) {
+        setClientAccounts(Array.isArray(finalFrontmatter.tiktok_accounts) ? finalFrontmatter.tiktok_accounts : [])
+      }
       
       // Parse into form fields
       parseRawPrompt(rawContent)
@@ -549,10 +603,41 @@ export default function PromptsPage() {
       console.log('[handleEditCampaign] Content:', content)
       console.log('[handleEditCampaign] Frontmatter:', frontmatter)
       
+      // Check if content already contains frontmatter (double-encoded issue)
+      let finalContent = content
+      let finalFrontmatter = frontmatter
+      
+      // If content starts with ---, it means it's double-encoded
+      if (content.trim().startsWith('---')) {
+        const parsed = matter(content)
+        finalContent = parsed.content
+        finalFrontmatter = { ...frontmatter, ...parsed.data }
+      }
+      
       // Set raw prompt - even if content is empty, we should show the frontmatter
-      const rawContent = matter.stringify(content, frontmatter)
+      const rawContent = matter.stringify(finalContent, finalFrontmatter)
       console.log('[handleEditCampaign] Raw content:', rawContent)
       setRawPrompt(rawContent)
+      
+      // Load client's TikTok accounts to show in multiselect
+      try {
+        const clientRes = await fetch(`/api/prompts/load?type=client&client=${clientName}`)
+        if (clientRes.ok) {
+          const clientData = await clientRes.json()
+          if (clientData.frontmatter?.tiktok_accounts) {
+            setClientAccounts(Array.isArray(clientData.frontmatter.tiktok_accounts) ? 
+              clientData.frontmatter.tiktok_accounts : [])
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load client accounts:', err)
+      }
+      
+      // Load assigned accounts for this campaign
+      if (frontmatter.assigned_accounts) {
+        setSelectedCampaignAccounts(Array.isArray(frontmatter.assigned_accounts) ? 
+          frontmatter.assigned_accounts : [])
+      }
       
       // Parse into form fields
       parseRawPrompt(rawContent)
@@ -1262,6 +1347,23 @@ export default function PromptsPage() {
                               onChange={(e) => setBannedWords(e.target.value)}
                             />
                           </div>
+
+                          <div>
+                            <Label htmlFor="tiktok-accounts">TikTok Accounts</Label>
+                            <Textarea
+                              id="tiktok-accounts"
+                              placeholder="@account1&#10;@account2&#10;@account3"
+                              value={clientAccounts.join('\n')}
+                              onChange={(e) => setClientAccounts(
+                                e.target.value.split('\n').map(a => a.trim()).filter(Boolean)
+                              )}
+                              rows={4}
+                              className="font-mono text-sm"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Enter TikTok accounts to track for this client (one per line)
+                            </p>
+                          </div>
                         </>
                       ) : (
                         <>
@@ -1318,6 +1420,40 @@ export default function PromptsPage() {
                               />
                             </div>
                           </div>
+
+                          {clientAccounts.length > 0 && (
+                            <div className="space-y-2">
+                              <Label>Assign TikTok Accounts to Campaign</Label>
+                              <div className="rounded-lg border p-3 max-h-[200px] overflow-y-auto space-y-2">
+                                {clientAccounts.map(account => (
+                                  <div key={account} className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={`account-${account}`}
+                                      checked={selectedCampaignAccounts.includes(account)}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          setSelectedCampaignAccounts([...selectedCampaignAccounts, account])
+                                        } else {
+                                          setSelectedCampaignAccounts(
+                                            selectedCampaignAccounts.filter(a => a !== account)
+                                          )
+                                        }
+                                      }}
+                                    />
+                                    <Label 
+                                      htmlFor={`account-${account}`}
+                                      className="font-mono text-sm cursor-pointer"
+                                    >
+                                      {account}
+                                    </Label>
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Select TikTok accounts from the client pool to track for this campaign
+                              </p>
+                            </div>
+                          )}
                           
                           
                           {frontmatter?.saved_tracks && frontmatter.saved_tracks.length > 0 && (
