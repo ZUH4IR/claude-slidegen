@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-08-04T23:33:26.818Z",
+  "config": {
+    "client": "dreamease",
+    "campaign": "relationship-anxiety",
+    "blueprint": "medical_betrayal",
+    "rows": 5,
+    "hookAppeal": "drama",
+    "charCap": 70,
+    "topic": "yes",
+    "productSlide": 5,
+    "addSelfAwareJoke": false,
+    "addBottomText": true
+  },
+  "hooks": [
+    "Doctor told me I was perfectly healthy | Found out he lied to protect his colleague",
+    "My dentist said everything was fine | The real x-ray showed years of neglect",
+    "Nurse whispered something when she thought I was asleep | Changed my entire treatment plan",
+    "Trusted my therapist for 2 years | Just discovered they've been sharing my secrets"
+  ],
+  "csv": "Hook,Slide 1,Slide 2,Slide 3,Slide 4,Slide 5\n\"Doctor told me I was perfectly healthy | Found out he lied to protect his colleague\",\"Was having severe pain for months. Doc said it was just stress and anxiety\",\"Spent $3000 on therapy and meditation apps they recommended. Pain got worse\",\"Found a new doctor who immediately ordered real tests. Had a tumor they missed\",\"Original doc knew the specialist who missed it on my first scan. Covered it up\",\"Don't trust just one opinion. My new health tracking app caught what they missed. #sponsored\"\n\"My dentist said everything was fine | The real x-ray showed years of neglect\",\"'Your teeth look great!' they said at every checkup for 4 years\",\"Paid premium for 'preventative' care they claimed would keep me healthy\",\"Emergency visit to new dentist revealed 8 cavities and severe gum disease\",\"Old dentist was billing insurance for work never done. Currently under investigation\",\"Take control of your dental health. This smart toothbrush shows what dentists miss #ad\"\n\"Nurse whispered something when she thought I was asleep | Changed my entire treatment plan\",\"Woke up during routine procedure. Heard nurse say 'They never check these levels'\",\"Doctor prescribed expensive meds without running basic blood work\",\"New hospital discovered I had opposite condition of what they were treating\",\"Original treatment was making everything worse. Could have been fatal\",\"Monitor your own levels at home. This device saved my life #sponsored\"\n\"Trusted my therapist for 2 years | Just discovered they've been sharing my secrets\",\"Thought I found the perfect therapist. Opened up about everything\",\"Started noticing people knew details only shared in therapy\",\"Found out therapist was friends with my ex. Told them everything\",\"Had to move cities. Lost my job because of shared private info\",\"Protect your mental health journey. This encrypted therapy app keeps your secrets safe #ad\"\n\"Doctor told me nothing was wrong | I almost lost my life believing them\",\"'It's all in your head' they said for 6 months straight\",\"Lost 30 pounds. Couldn't work. Family thought I was making it up\",\"Collapsed at store. ER found life-threatening condition they missed\",\"Could have been treated easily if caught when I first complained\",\"Track your symptoms with this app. Don't let doctors dismiss you again #sponsored\""
+}

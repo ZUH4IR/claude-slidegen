@@ -18,7 +18,7 @@ import { VariableLegend } from '@/components/VariableLegend'
 import { FolderTree } from '@/components/FolderTree'
 import { ColorCodedEditor } from '@/components/ColorCodedEditor'
 import { VersionDiff } from '@/components/VersionDiff'
-import { PromptChainDiagram } from '@/components/PromptChainDiagram'
+import { PromptPreview } from '@/components/PromptPreview'
 
 interface PromptVersion {
   version: number
@@ -129,11 +129,11 @@ export default function PromptsPage() {
         } else {
           // Show default common variables when no client is selected
           const defaultVars = [
-            { key: 'client_name', scope: 'global' },
-            { key: 'campaign_name', scope: 'global' },
-            { key: 'product_slide', scope: 'global' },
-            { key: 'tone_strength', scope: 'global' },
-            { key: 'rage_bait_intensity', scope: 'global' },
+            { key: 'client_name', scope: 'global' as const },
+            { key: 'campaign_name', scope: 'global' as const },
+            { key: 'product_slide', scope: 'global' as const },
+            { key: 'tone_strength', scope: 'global' as const },
+            { key: 'rage_bait_intensity', scope: 'global' as const },
           ]
           console.log('[loadVariables] Using default variables:', defaultVars)
           setAvailableVariables(defaultVars)
@@ -369,7 +369,7 @@ export default function PromptsPage() {
       setIsNewCampaign(false)
       setIsGlobalRules(false)
       setClientName(clientName)
-      setSelectedPath(`clients/${clientName}/_client`)
+      setSelectedPath(`clients/${clientName}/_brand`)
       
       // Handle case where content might be empty but valid
       const content = data.content || ''
@@ -538,7 +538,7 @@ export default function PromptsPage() {
     try {
       const fileName = isNewCampaign 
         ? `${campaignName}_v${version}.md`
-        : `_client_v${version}.md`
+        : `_brand_v${version}.md`
       
       const res = await fetch(`/api/prompts/load?type=${isNewCampaign ? 'campaign' : 'client'}&client=${selectedClient}&campaign=${campaignName}&version=${version}`)
       const data = await res.json()
@@ -716,9 +716,19 @@ export default function PromptsPage() {
           }
         })
         
-        // Build content from sections
-        const sections = dynamicFields.filter(f => f.key.startsWith('section_'))
-        content = sections.map(section => `## ${section.label}\n\n${section.value}`).join('\n\n')
+        // Build content from sections and non-frontmatter fields
+        const sections = dynamicFields.filter(f => f.key.startsWith('section_') || !f.key.startsWith('fm_'))
+        
+        // For client prompts, add voice and integration_rule at the beginning
+        if (isNewClient && (clientVoice || integrationRule)) {
+          content = ''
+          if (clientVoice) content += `voice: ${clientVoice}\n`
+          if (integrationRule) content += `integration_rule: ${integrationRule}\n`
+          if (sections.length > 0) content += '\n'
+        }
+        
+        // Add sections
+        content += sections.map(section => `## ${section.label}\n\n${section.value}`).join('\n\n')
         
         // Build the full raw prompt
         setRawPrompt(matter.stringify(content, fm))
@@ -753,7 +763,7 @@ export default function PromptsPage() {
       
       const fileName = isNewCampaign 
         ? `${selectedClient}/${campaignName}_v${nextVersion}.md`
-        : `${selectedClient}/_client_v${nextVersion}.md`
+        : `${selectedClient}/_brand_v${nextVersion}.md`
 
       await fetch('/api/prompts/save-structured', {
         method: 'POST',
@@ -1017,8 +1027,8 @@ export default function PromptsPage() {
                           : isGlobalRules 
                           ? 'Editing: prompts/global/rules_v1.md'
                           : selectedType === 'edit' 
-                          ? `Editing: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_client' : campaignName}_v${currentVersion}.md`
-                          : `Creating: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_client' : campaignName}_v1.md`}
+                          ? `Editing: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_brand' : campaignName}_v${currentVersion}.md`
+                          : `Creating: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_brand' : campaignName}_v1.md`}
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1263,11 +1273,27 @@ export default function PromptsPage() {
                           </Button>
                         </div>
                         
-                        {dynamicFields.map(field => (
-                          <div key={field.key} className="space-y-2 p-4 border rounded-lg">
+                        {dynamicFields.map((field, index) => (
+                          <div key={field.key} className={cn(
+                            "space-y-2 p-4 rounded-lg",
+                            field.key.startsWith('section_') ? "border-2 border-blue-200 bg-blue-50/50" : "border"
+                          )}>
                             <div className="flex items-center justify-between gap-2">
                               {field.key.startsWith('fm_') ? (
-                                <Label className="font-medium">{field.label}</Label>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs">Frontmatter</Badge>
+                                  <Label className="font-medium">{field.label}</Label>
+                                </div>
+                              ) : field.key.startsWith('section_') ? (
+                                <div className="flex items-center gap-2 flex-1">
+                                  <Badge variant="default" className="text-xs">Section</Badge>
+                                  <Input
+                                    value={field.label}
+                                    onChange={(e) => updateDynamicField(field.key, { label: e.target.value })}
+                                    placeholder="Section Title"
+                                    className="font-medium flex-1"
+                                  />
+                                </div>
                               ) : (
                                 <Input
                                   value={field.label}
@@ -1328,6 +1354,7 @@ export default function PromptsPage() {
                         value={rawPrompt}
                         onChange={(value) => {
                           setRawPrompt(value)
+                          // Parse sections in real-time for immediate feedback
                           parseRawPrompt(value)
                         }}
                         variables={availableVariables}
@@ -1339,9 +1366,16 @@ export default function PromptsPage() {
                         )}
                         placeholder="Enter raw prompt with frontmatter..."
                       />
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Use ## to create new sections that will appear as form fields
-                      </p>
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-sm text-muted-foreground">
+                          Use ## to create new sections that will appear as form fields
+                        </p>
+                        {dynamicFields.filter(f => f.key.startsWith('section_')).length > 0 && (
+                          <Badge variant="secondary" className="text-xs">
+                            {dynamicFields.filter(f => f.key.startsWith('section_')).length} sections detected
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -1366,8 +1400,9 @@ export default function PromptsPage() {
                 <VariableLegend 
                   client={selectedClient || 'global'}
                   campaign={!isNewClient && campaignName ? campaignName : undefined}
-                  onVariableClick={(varName) => {
+                  onVariableClick={(variable) => {
                     // Jump to first occurrence in editor
+                    const varName = typeof variable === 'string' ? variable : variable.key
                     if (viewMode === 'raw') {
                       // Find the textarea inside ColorCodedEditor
                       const textarea = document.querySelector('.relative textarea') as HTMLTextAreaElement
@@ -1450,10 +1485,12 @@ export default function PromptsPage() {
                         </div>
                       </div>
                       {showFullChain ? (
-                        <PromptChainDiagram
+                        <PromptPreview
                           globalContent={promptChainData.global}
                           clientContent={promptChainData.client}
                           campaignContent={promptChainData.campaign}
+                          mergedContent={fullPromptChain}
+                          mode="chain"
                           className="max-h-[600px] overflow-y-auto"
                         />
                       ) : (

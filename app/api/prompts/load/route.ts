@@ -34,19 +34,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ frontmatter, content })
     }
     
-    const clientsDir = path.join(process.cwd(), 'prompts', 'clients', client)
+    const clientsDir = path.join(process.cwd(), 'prompts', 'clients', client!)
     
     if (type === 'client') {
       try {
         // Find the active client file
         const files = await fs.readdir(clientsDir)
-        const clientFile = files.find(f => f.startsWith('_client_v') && f.endsWith('.md'))
+        const clientFile = files.find(f => f.startsWith('_brand_v') && f.endsWith('.md'))
         
         if (!clientFile) {
           console.log(`[API] No client file found for ${client} in ${clientsDir}`)
           console.log('[API] Available files:', files)
           return NextResponse.json(
-            { error: 'Client file not found', details: `No _client_v*.md file found for ${client}` },
+            { error: 'Client file not found', details: `No _brand_v*.md file found for ${client}` },
             { status: 404 }
           )
         }

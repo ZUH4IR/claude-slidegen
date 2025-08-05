@@ -16,8 +16,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Play, Copy, Loader2, Download, ChevronDown, FileSpreadsheet, Eye, AlertCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { ExcelTable } from '@/components/ExcelTable'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
+import { PromptPreview } from '@/components/PromptPreview'
+import { HooksTable, type Hook as HookType } from '@/components/HooksTable'
+import { ContentTable, type ContentRow } from '@/components/ContentTable'
 
 interface Config {
   client: string
@@ -40,16 +42,7 @@ interface Options {
   blueprints: string[]
 }
 
-interface Hook {
-  text: string
-  selected: boolean
-  edited?: string
-}
 
-interface TableRow {
-  hook: string
-  slides: string[]
-}
 
 export default function GeneratorPage() {
   const { toast } = useToast()
@@ -74,10 +67,10 @@ export default function GeneratorPage() {
   })
   
   const [loading, setLoading] = useState(false)
-  const [hooks, setHooks] = useState<Hook[]>([])
+  const [hooks, setHooks] = useState<HookType[]>([])
   const [showHooksModal, setShowHooksModal] = useState(false)
   const [showTablePreview, setShowTablePreview] = useState(false)
-  const [tableData, setTableData] = useState<TableRow[]>([])
+  const [tableData, setTableData] = useState<ContentRow[]>([])
   const [csvResult, setCsvResult] = useState('')
   const [error, setError] = useState('')
   const [showDebugPreview, setShowDebugPreview] = useState(false)
@@ -229,7 +222,8 @@ export default function GeneratorPage() {
       
       const data = await res.json()
       // Convert hooks to the new format with selection state
-      const formattedHooks = data.hooks.map((h: string) => ({
+      const formattedHooks = data.hooks.map((h: string, idx: number) => ({
+        id: `hook-${idx}`,
         text: h,
         selected: true,
         edited: h
@@ -250,46 +244,18 @@ export default function GeneratorPage() {
     }
   }
 
-  const toggleHookSelection = (index: number) => {
-    const updated = [...hooks]
-    updated[index].selected = !updated[index].selected
-    setHooks(updated)
-  }
 
-  const updateHook = (index: number, text: string) => {
-    const updated = [...hooks]
-    updated[index].edited = text
-    setHooks(updated)
-  }
-
-  const selectAllHooks = (selected: boolean) => {
-    const updated = hooks.map(h => ({ ...h, selected }))
-    setHooks(updated)
-  }
-
-  const approveHooks = async () => {
+  const handleGenerateSlides = async (selectedHooks: HookType[]) => {
     try {
-      // Filter selected hooks
-      const selectedHooks = hooks
-        .filter(h => h.selected)
-        .map(h => h.edited || h.text)
+      const hookTexts = selectedHooks.map(h => h.edited || h.text)
       
-      if (selectedHooks.length === 0) {
-        toast({
-          title: 'No hooks selected',
-          description: 'Please select at least one hook',
-          variant: 'destructive'
-        })
-        return
-      }
-
       setLoading(true)
       const res = await fetch('/api/generator/csv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           config,
-          hooks: selectedHooks
+          hooks: hookTexts
         })
       })
       
@@ -302,7 +268,7 @@ export default function GeneratorPage() {
       
       // Parse CSV into table data
       const rows = csv.split('\n').filter((row: string) => row.trim())
-      const parsedData: TableRow[] = []
+      const parsedData: ContentRow[] = []
       
       // Skip header row
       for (let i = 1; i < rows.length; i++) {
@@ -422,7 +388,7 @@ export default function GeneratorPage() {
       
       // Parse the complex CSV structure
       const rows = csv.split('\n').filter((row: string) => row.trim())
-      const parsedData: TableRow[] = []
+      const parsedData: ContentRow[] = []
       
       // Skip header row
       for (let i = 1; i < rows.length && i <= 6; i++) { // Limit to first 5 rows for display
@@ -898,34 +864,16 @@ export default function GeneratorPage() {
           className="h-[85vh] p-0 flex flex-col"
         >
           <SheetHeader className="px-6 py-4 border-b">
-            <SheetTitle>Generated Content - Review & Edit</SheetTitle>
+            <SheetTitle>Generated Content</SheetTitle>
             <SheetDescription>Edit any cell and your changes will be included in the export</SheetDescription>
-            <div className="flex items-center justify-between mt-4">
-              <div></div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={downloadCSV}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download CSV
-                </Button>
-                <Button size="sm" variant="outline" onClick={exportToExcel}>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" />
-                  Export Excel
-                </Button>
-                <Button size="sm" variant="outline" onClick={copyToClipboard}>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy CSV
-                </Button>
-              </div>
-            </div>
           </SheetHeader>
-          <div className="flex-1 px-6 py-4" style={{ minHeight: 0 }}>
-            <ExcelTable 
-              data={tableData} 
+          <div className="flex-1 px-6 py-4 overflow-y-auto">
+            <ContentTable
+              data={tableData}
               onDataChange={setTableData}
+              onExport={(format) => format === 'csv' ? downloadCSV() : exportToExcel()}
+              onCopy={copyToClipboard}
             />
-          </div>
-          <div className="px-6 py-3 border-t text-sm text-muted-foreground">
-            {tableData.length} slides generated. Edit any cell and your changes will be included in the export.
           </div>
         </SheetContent>
       </Sheet>
@@ -935,85 +883,35 @@ export default function GeneratorPage() {
         <DialogContent className="max-w-screen-xl h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-2xl">Review and Select Hooks</DialogTitle>
+            <p className="text-muted-foreground mt-2">
+              Select the hooks you want to use. You can edit them before generating slides.
+            </p>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-muted-foreground">
-                  Select the hooks you want to use. You can edit them before generating slides.
-                </p>
-                <div className="flex items-center gap-4">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => selectAllHooks(true)}
-                  >
-                    Select All
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => selectAllHooks(false)}
-                  >
-                    Deselect All
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                {hooks.map((hook, index) => (
-                  <div key={index} className="flex gap-4 p-4 border rounded-lg">
-                    <Checkbox
-                      checked={hook.selected}
-                      onCheckedChange={() => toggleHookSelection(index)}
-                      className="mt-2"
-                    />
-                    <div className="flex-1 space-y-2">
-                      <Label className="text-sm font-medium">
-                        Hook {index + 1}
-                        {config.addBottomText && hook.text.includes(' | ') && (
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            (with bottom text)
-                          </span>
-                        )}
-                      </Label>
-                      <Textarea
-                        value={hook.edited || hook.text}
-                        onChange={(e) => updateHook(index, e.target.value)}
-                        className="min-h-[80px] resize-none"
-                        placeholder={`Enter hook ${index + 1}...`}
-                        disabled={!hook.selected}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="flex-1 overflow-y-auto p-6">
+            <HooksTable
+              hooks={hooks}
+              onHooksChange={setHooks}
+              mode="edit"
+              onGenerateSlides={handleGenerateSlides}
+            />
           </div>
           <DialogFooter className="border-t pt-4">
-            <div className="flex items-center justify-between w-full">
-              <div className="text-sm text-muted-foreground">
-                {hooks.filter(h => h.selected).length} of {hooks.length} hooks selected
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setShowHooksModal(false)}>
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={approveHooks}
-                  disabled={hooks.filter(h => h.selected).length === 0 || loading}
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Slides...
-                    </>
-                  ) : (
-                    'Generate Slides for Selected Hooks'
-                  )}
-                </Button>
-              </div>
-            </div>
+            <Button variant="outline" onClick={() => setShowHooksModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => handleGenerateSlides(hooks.filter(h => h.selected))}
+              disabled={hooks.filter(h => h.selected).length === 0 || loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating Slides...
+                </>
+              ) : (
+                'Generate Slides for Selected Hooks'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1025,74 +923,15 @@ export default function GeneratorPage() {
             <DialogTitle>Debug Preview - Prompt Chain</DialogTitle>
           </DialogHeader>
           {debugPromptChain && (
-            <div className="space-y-6">
-              {/* Configuration Summary */}
-              <div className="space-y-2">
-                <h3 className="font-semibold text-lg">Configuration</h3>
-                <div className="bg-muted p-4 rounded-lg space-y-1 text-sm">
-                  <div><span className="font-medium">Client:</span> {config.client}</div>
-                  {config.campaign && <div><span className="font-medium">Campaign:</span> {config.campaign}</div>}
-                  <div><span className="font-medium">Blueprint:</span> {config.blueprint}</div>
-                  <div><span className="font-medium">Hook Appeal:</span> {config.hookAppeal}</div>
-                  <div><span className="font-medium">Character Cap:</span> {config.charCap}</div>
-                  <div><span className="font-medium">Product Slide:</span> Slide {config.productSlide}</div>
-                  <div><span className="font-medium">Self-Aware Joke:</span> {config.addSelfAwareJoke ? 'Yes' : 'No'}</div>
-                  <div><span className="font-medium">Bottom Text:</span> {config.addBottomText ? 'Yes' : 'No'}</div>
-                  {config.toneStrength && <div><span className="font-medium">Tone Strength:</span> {config.toneStrength}%</div>}
-                  {config.rageBaitIntensity && <div><span className="font-medium">Rage Bait Intensity:</span> {config.rageBaitIntensity}%</div>}
-                </div>
-              </div>
-
-              {/* Client Prompt */}
-              {debugPromptChain.clientPrompt && (
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-lg">Client Prompt</h3>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <pre className="whitespace-pre-wrap text-sm font-mono">{debugPromptChain.clientPrompt}</pre>
-                  </div>
-                </div>
-              )}
-
-              {/* Campaign Prompt */}
-              {debugPromptChain.campaignPrompt && (
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-lg">Campaign Prompt</h3>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <pre className="whitespace-pre-wrap text-sm font-mono">{debugPromptChain.campaignPrompt}</pre>
-                  </div>
-                </div>
-              )}
-
-              {/* Blueprint */}
-              {debugPromptChain.blueprint && (
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-lg">Blueprint Structure</h3>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <pre className="whitespace-pre-wrap text-sm font-mono">{debugPromptChain.blueprint}</pre>
-                  </div>
-                </div>
-              )}
-
-              {/* Full Prompt Chain */}
-              {debugPromptChain.fullPrompt && (
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-lg">Full Prompt Chain</h3>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <pre className="whitespace-pre-wrap text-sm font-mono">{debugPromptChain.fullPrompt}</pre>
-                  </div>
-                </div>
-              )}
-
-              {/* Example Output */}
-              {debugPromptChain.exampleOutput && (
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-lg">Example Output Structure</h3>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <pre className="whitespace-pre-wrap text-sm font-mono">{debugPromptChain.exampleOutput}</pre>
-                  </div>
-                </div>
-              )}
-            </div>
+            <PromptPreview
+              globalContent={debugPromptChain.globalPrompt}
+              clientContent={debugPromptChain.clientPrompt}
+              campaignContent={debugPromptChain.campaignPrompt}
+              mergedContent={debugPromptChain.fullPrompt}
+              blueprint={debugPromptChain.blueprint}
+              config={config}
+              mode="full"
+            />
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDebugPreview(false)}>

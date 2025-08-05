@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     try {
       const clientDir = path.join(process.cwd(), 'prompts', 'clients', client)
       const files = await fs.readdir(clientDir)
-      const clientFile = files.find(f => f.startsWith('_client_v') && f.endsWith('.md'))
+      const clientFile = files.find(f => f.startsWith('_brand_v') && f.endsWith('.md'))
       
       if (clientFile) {
         const stat = await fs.stat(path.join(clientDir, clientFile))

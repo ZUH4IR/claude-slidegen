@@ -74,9 +74,9 @@ export function FolderTree({ onSelect, selectedPath, onNewClient, onNewCampaign,
             metadata: { isClient: true, clientName: client },
             children: [
               {
-                name: '_client.md',
+                name: '_brand.md',
                 type: 'file' as const,
-                path: `clients/${client}/_client`,
+                path: `clients/${client}/_brand`,
                 metadata: { isClient: true, version: campaigns._version || 1, clientName: client }
               },
               ...(campaigns.campaigns || []).map((campaign: string) => ({

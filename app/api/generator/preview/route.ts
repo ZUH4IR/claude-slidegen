@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     // Load client prompt
     try {
-      const clientPath = path.join(process.cwd(), 'prompts', 'clients', client, '_client.md')
+      const clientPath = path.join(process.cwd(), 'prompts', 'clients', client, '_brand.md')
       const clientContent = await readFile(clientPath, 'utf-8')
       const { content: clientPromptContent } = matter(clientContent)
       debugData.clientPrompt = clientPromptContent.trim()

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Play, FileEdit, Shield, History } from 'lucide-react'
+import { Play, FileEdit, Shield, History, GitBranch } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { QuickStats } from '@/components/QuickStats'
 
@@ -16,6 +16,11 @@ const navItems = [
     title: 'Prompt Manager',
     href: '/prompts',
     icon: FileEdit,
+  },
+  {
+    title: 'Graph View',
+    href: '/graph',
+    icon: GitBranch,
   },
   {
     title: 'History',

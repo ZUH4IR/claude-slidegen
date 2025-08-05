@@ -77,7 +77,7 @@ export async function GET() {
           const clientFiles = await fs.readdir(clientPath)
           
           // Find client file version
-          const clientFile = clientFiles.find(f => f.startsWith('_client_v') && f.endsWith('.md'))
+          const clientFile = clientFiles.find(f => f.startsWith('_brand_v') && f.endsWith('.md'))
           if (clientFile) {
             const match = clientFile.match(/_v(\d+)\.md$/)
             if (match) {
@@ -87,7 +87,7 @@ export async function GET() {
           
           // Find campaigns
           for (const file of clientFiles) {
-            if (file.endsWith('.md') && !file.startsWith('_client')) {
+            if (file.endsWith('.md') && !file.startsWith('_brand')) {
               // Extract campaign name without version
               const campaignName = file.replace(/_v\d+\.md$/, '').replace('.md', '')
               if (!result.clients[clientName].campaigns.includes(campaignName)) {

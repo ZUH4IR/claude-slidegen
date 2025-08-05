@@ -11,7 +11,7 @@ prompts/
 │   └── rules_v1.md          # Universal principles for all content
 ├── clients/
 │   └── {client_name}/
-│       ├── _client_v1.md    # Client-specific voice and rules
+│       ├── _brand_v1.md    # Client-specific voice and rules
 │       └── {campaign}_v1.md # Campaign-specific strategies
 blueprints/
 ├── family-betrayal.md       # Template for family drama stories
@@ -65,7 +65,7 @@ blueprints/
 
 ### New Client:
 1. Create folder: `prompts/clients/{client_name}/`
-2. Add `_client_v1.md` with brand voice
+2. Add `_brand_v1.md` with brand voice
 3. Define client variables and rules
 
 ### New Campaign:

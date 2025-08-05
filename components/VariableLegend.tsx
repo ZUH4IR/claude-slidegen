@@ -1,200 +1,244 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { ChevronRight, AlertCircle, Info } from 'lucide-react'
+import { ChevronRight, AlertCircle, Info, ArrowUpDown, Circle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-interface Variable {
-  key: string
-  scope: 'global' | 'client' | 'campaign'
-  default: any
-  overrides?: {
-    client?: any
-    campaign?: any
-  }
-  effectiveValue: any
-}
+import { Variable, getEffectiveValue } from '@/lib/scanVars-client'
+import { useToast } from '@/hooks/use-toast'
 
 interface VariableLegendProps {
   client: string
   campaign?: string
-  onVariableClick?: (varName: string) => void
+  onVariableClick?: (variable: Variable) => void
   className?: string
 }
 
+type SortField = 'key' | 'scope' | 'file'
+type SortOrder = 'asc' | 'desc'
+
 export function VariableLegend({ client, campaign, onVariableClick, className }: VariableLegendProps) {
+  const { toast } = useToast()
   const [variables, setVariables] = useState<Variable[]>([])
   const [loading, setLoading] = useState(true)
   const [isOpen, setIsOpen] = useState(true)
+  const [sortField, setSortField] = useState<SortField>('key')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
+
+  const loadVariables = useCallback(async () => {
+    if (!client) return
+
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ client })
+      if (campaign) params.append('campaign', campaign)
+      
+      const res = await fetch(`/api/scanvars?${params}`)
+      const result = await res.json()
+      
+      if (result.errors && result.errors.length > 0) {
+        toast({
+          title: 'Warning',
+          description: result.errors.join(', '),
+          variant: 'destructive'
+        })
+      }
+      
+      setVariables(result.variables || [])
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load variables',
+        variant: 'destructive'
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [client, campaign, toast])
 
   useEffect(() => {
-    if (!client) return
-    
-    const loadVariables = async () => {
-      console.log('[VariableLegend] Loading variables for:', { client, campaign })
-      try {
-        setLoading(true)
-        const params = new URLSearchParams({ client })
-        if (campaign) params.append('campaign', campaign)
-        
-        console.log('[VariableLegend] Fetching:', `/api/legend?${params}`)
-        const res = await fetch(`/api/legend?${params}`)
-        const data = await res.json()
-        console.log('[VariableLegend] Response:', data)
-        setVariables(data.variables || [])
-      } catch (err) {
-        console.error('[VariableLegend] Failed to load variables:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    
     loadVariables()
-  }, [client, campaign])
+  }, [loadVariables])
 
-  const getScopeBadge = (scope: string) => {
-    const variants = {
-      global: 'secondary',
-      client: 'default',
-      campaign: 'outline'
-    } as const
-    
-    const colors = {
-      global: 'bg-gray-100 text-gray-800 border-gray-200',
-      client: 'bg-blue-100 text-blue-800 border-blue-200',
-      campaign: 'bg-green-100 text-green-800 border-green-200'
-    } as const
-    
-    return (
-      <Badge 
-        variant={variants[scope as keyof typeof variants]} 
-        className={cn("text-xs", colors[scope as keyof typeof colors])}
-      >
-        {scope}
-      </Badge>
-    )
+  const getScopeColor = (scope: string) => {
+    switch (scope) {
+      case 'global':
+        return 'text-gray-600 bg-gray-100'
+      case 'brand':
+        return 'text-blue-600 bg-blue-100'
+      case 'campaign':
+        return 'text-green-600 bg-green-100'
+      default:
+        return 'text-gray-600 bg-gray-100'
+    }
+  }
+
+  const getGutterColor = (scope: string) => {
+    switch (scope) {
+      case 'global':
+        return 'bg-gray-400'
+      case 'brand':
+        return 'bg-blue-400'
+      case 'campaign':
+        return 'bg-green-400'
+      default:
+        return 'bg-gray-400'
+    }
   }
 
   const getConflictIndicator = (variable: Variable) => {
-    if (variable.overrides?.campaign && variable.overrides?.client) {
-      return <div className="w-2 h-2 bg-red-500 rounded-full" title="Campaign overrides client" />
-    }
-    if (variable.overrides?.campaign || variable.overrides?.client) {
-      return <div className="w-2 h-2 bg-orange-500 rounded-full" title="Override exists" />
+    if (variable.override !== undefined) {
+      if (variable.scope === 'global' || variable.scope === 'brand') {
+        return <Circle className="h-3 w-3 fill-orange-500 text-orange-500" />
+      }
+      return <Circle className="h-3 w-3 fill-red-500 text-red-500" />
     }
     return null
   }
 
-  const formatValue = (value: any): string => {
-    if (typeof value === 'string') return value
-    if (Array.isArray(value)) return value.join(', ')
-    if (typeof value === 'object') return JSON.stringify(value, null, 2)
-    return String(value)
+  const sortedVariables = [...variables].sort((a, b) => {
+    let aValue: string, bValue: string
+    
+    switch (sortField) {
+      case 'key':
+        aValue = a.key
+        bValue = b.key
+        break
+      case 'scope':
+        aValue = a.scope
+        bValue = b.scope
+        break
+      case 'file':
+        aValue = a.file
+        bValue = b.file
+        break
+      default:
+        aValue = a.key
+        bValue = b.key
+    }
+    
+    if (sortOrder === 'asc') {
+      return aValue.localeCompare(bValue)
+    } else {
+      return bValue.localeCompare(aValue)
+    }
+  })
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortOrder('asc')
+    }
   }
 
   return (
-    <Card className={cn("border-l-4 border-l-primary", className)}>
+    <Card className={cn("overflow-hidden", className)}>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger className="w-full">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ChevronRight className={cn(
-                  "h-4 w-4 transition-transform",
-                  isOpen && "rotate-90"
-                )} />
-                <CardTitle className="text-sm font-medium">Variable Legend</CardTitle>
-                <Badge variant="secondary" className="text-xs">
-                  {variables.length} vars
-                </Badge>
-              </div>
-              <Info className="h-4 w-4 text-muted-foreground" />
+        <CollapsibleTrigger asChild>
+          <div className="flex items-center justify-between p-4 border-b cursor-pointer hover:bg-muted/50">
+            <div className="flex items-center gap-2">
+              <ChevronRight className={cn(
+                "h-4 w-4 transition-transform",
+                isOpen && "rotate-90"
+              )} />
+              <h3 className="font-medium">Variable Legend</h3>
+              <Badge variant="secondary">{variables.length}</Badge>
             </div>
-          </CardHeader>
+          </div>
         </CollapsibleTrigger>
         
         <CollapsibleContent>
-          <CardContent className="pt-0">
-            {loading ? (
-              <div className="text-sm text-muted-foreground">Loading variables...</div>
-            ) : variables.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No variables found</div>
-            ) : (
-              <div className="space-y-2">
-                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground pb-2 border-b">
-                  <div className="col-span-3">Key</div>
-                  <div className="col-span-2">Scope</div>
-                  <div className="col-span-4">Default</div>
-                  <div className="col-span-3">Overrides</div>
-                </div>
-                
-                {variables.map((variable) => (
+          <div className="border-b bg-muted/50 px-4 py-2">
+            <div className="grid grid-cols-4 gap-4 text-xs font-medium">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto p-0 justify-start"
+                onClick={() => handleSort('key')}
+              >
+                Variable
+                <ArrowUpDown className="ml-1 h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto p-0 justify-start"
+                onClick={() => handleSort('scope')}
+              >
+                Scope
+                <ArrowUpDown className="ml-1 h-3 w-3" />
+              </Button>
+              <div>Value</div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto p-0 justify-start"
+                onClick={() => handleSort('file')}
+              >
+                Source
+                <ArrowUpDown className="ml-1 h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+          
+          <ScrollArea className="h-[300px]">
+            <div className="p-4 space-y-1">
+              {loading ? (
+                <div className="text-sm text-muted-foreground">Loading variables...</div>
+              ) : sortedVariables.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No variables found</div>
+              ) : (
+                sortedVariables.map((variable) => (
                   <div
                     key={variable.key}
-                    className="grid grid-cols-12 gap-2 text-xs py-1.5 hover:bg-muted/50 cursor-pointer rounded-sm px-1 -mx-1"
-                    onClick={() => onVariableClick?.(variable.key)}
+                    className={cn(
+                      "grid grid-cols-4 gap-4 py-2 px-2 rounded text-sm cursor-pointer hover:bg-muted/50 relative",
+                      "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1",
+                      variable.scope === 'global' && "before:bg-gray-400",
+                      variable.scope === 'brand' && "before:bg-blue-400",
+                      variable.scope === 'campaign' && "before:bg-green-400"
+                    )}
+                    onClick={() => onVariableClick?.(variable)}
                   >
-                    <div className="col-span-3 font-mono flex items-center gap-1">
+                    <div className="flex items-center gap-2 font-mono text-xs">
                       {getConflictIndicator(variable)}
-                      <span className="truncate">{variable.key}</span>
+                      <span>{variable.key}</span>
                     </div>
-                    <div className="col-span-2">
-                      {getScopeBadge(variable.scope)}
+                    <div>
+                      <Badge variant="outline" className={cn("text-xs", getScopeColor(variable.scope))}>
+                        {variable.scope}
+                      </Badge>
                     </div>
-                    <div className="col-span-4 truncate text-muted-foreground" title={formatValue(variable.default)}>
-                      {formatValue(variable.default)}
+                    <div className="text-xs text-muted-foreground truncate">
+                      {String(getEffectiveValue(variable))}
                     </div>
-                    <div className="col-span-3">
-                      {variable.overrides && (
-                        <div className="space-y-0.5">
-                          {variable.overrides.client && (
-                            <div className="flex items-center gap-1">
-                              <Badge variant="default" className="text-xs h-4 bg-blue-100 text-blue-800">C</Badge>
-                              <span className="truncate text-muted-foreground" title={formatValue(variable.overrides.client)}>
-                                {formatValue(variable.overrides.client)}
-                              </span>
-                            </div>
-                          )}
-                          {variable.overrides.campaign && (
-                            <div className="flex items-center gap-1">
-                              <Badge variant="outline" className="text-xs h-4 bg-green-100 text-green-800 border-green-200">CM</Badge>
-                              <span className="truncate text-muted-foreground" title={formatValue(variable.overrides.campaign)}>
-                                {formatValue(variable.overrides.campaign)}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                    <div className="text-xs text-muted-foreground truncate">
+                      {variable.file.split('/').pop()}
                     </div>
                   </div>
-                ))}
+                ))
+              )}
+            </div>
+          </ScrollArea>
+          
+          <div className="border-t p-3 bg-muted/30">
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Circle className="h-3 w-3 fill-red-500 text-red-500" />
+                <span>Campaign override</span>
               </div>
-            )}
-            
-            <div className="mt-4 pt-3 border-t">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-3 w-3 text-muted-foreground mt-0.5" />
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p>Click any variable to jump to its first occurrence in the editor.</p>
-                  <p>Red dot: Campaign overrides client. Orange dot: Any override exists.</p>
-                  <p className="flex items-center gap-2 mt-2">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-3 h-3 bg-gray-200 rounded"></span> Global
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-3 h-3 bg-blue-200 rounded"></span> Client
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-3 h-3 bg-green-200 rounded"></span> Campaign
-                    </span>
-                  </p>
-                </div>
+              <div className="flex items-center gap-1">
+                <Circle className="h-3 w-3 fill-orange-500 text-orange-500" />
+                <span>Brand override</span>
               </div>
             </div>
-          </CardContent>
+          </div>
         </CollapsibleContent>
       </Collapsible>
     </Card>

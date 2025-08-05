@@ -143,3 +143,109 @@ Wrong column count	Update blueprints.yaml or adjust validator caps.
 
 git add README.md prompts src/components/PromptTree.tsx src/app/*
 git commit -m "feat: nested prompt explorer + README"
+
+
+---
+
+## 🏗️ Architecture Overview
+
+### What Was Built
+
+This application is a comprehensive TikTok-style CSV copy generator that combines:
+
+1. **Prompt Management System**
+   - Flat-file based prompt storage in `/prompts` directory
+   - Version control built into the naming convention (`_v#.md`)
+   - Hierarchical structure: Global → Client → Campaign
+   - YAML frontmatter for variable definitions and metadata
+
+2. **Hook Generation Engine**
+   - Integrates with Anthropic Claude API for AI-powered copy generation
+   - Blueprint-based generation with customizable parameters
+   - Real-time slider controls for fine-tuning output
+   - CSV export functionality for bulk content production
+
+3. **Editor & Version Control**
+   - WYSIWYG editor with Vim keybinding support
+   - Auto-save functionality (30-second intervals)
+   - Diff viewer for comparing prompt versions
+   - Variable legend with conflict detection
+
+### UI Approach
+
+The user interface follows modern design principles:
+
+1. **Component Architecture**
+   - Built with Next.js 14 App Router for optimal performance
+   - shadcn/ui components for consistent, accessible design
+   - Lucide icons for clean visual hierarchy
+   - Responsive layout that works across devices
+
+2. **Navigation Structure**
+   - Tab-based interface: Generator | Prompts | History
+   - Nested file explorer for intuitive prompt navigation
+   - Collapsible folders to manage complex hierarchies
+   - Quick action toolbar for common operations
+
+3. **Visual Feedback**
+   - Color-coded conflict indicators (🔴 red, 🟠 orange)
+   - Loading states and progress indicators
+   - Success/error toasts for user actions
+   - Inline diff highlighting for version comparisons
+
+### Logic & Data Flow
+
+1. **Prompt Merging Logic**
+   ```
+   Global Rules + Brand Module + Campaign Patch = Final Prompt
+   ```
+   - Variables cascade from global → brand → campaign
+   - Later definitions override earlier ones
+   - Mustache templating for variable interpolation
+
+2. **Generation Pipeline**
+   - User selects client → campaign → blueprint
+   - Adjusts parameters via UI controls
+   - System merges prompts and replaces variables
+   - Claude API processes the final prompt
+   - Output formatted as CSV with validation
+
+3. **State Management**
+   - React hooks for UI state (useState, useEffect)
+   - File system as source of truth for prompts
+   - No database required - all data in flat files
+   - Git-friendly for team collaboration
+
+4. **Variable Resolution**
+   - Scans YAML frontmatter across all active files
+   - Builds variable map with scope tracking
+   - Detects and displays override conflicts
+   - Click-to-jump functionality in editor
+
+### Key Technical Decisions
+
+- **Flat-file storage**: Enables Git tracking, easy backups, and simple deployment
+- **Version suffixes**: Built-in history without complex database schemas
+- **YAML frontmatter**: Clean separation of variables from content
+- **Mustache templating**: Simple, widely-understood variable syntax
+- **Next.js 14**: Modern React framework with excellent DX and performance
+- **shadcn/ui**: Customizable components without vendor lock-in
+
+### Component Architecture Improvements
+
+The application has been refactored for better consistency and maintainability:
+
+1. **Unified Components**
+   - `PromptPreview`: Single component for displaying prompt chains across all views
+   - `HooksTable`: Consistent table for hook selection, editing, and display
+   - `ContentTable`: Unified content editor supporting both Excel and card views
+
+2. **Streamlined User Flow**
+   - Generator → Select hooks in modal → Generate slides → Edit in unified table
+   - Consistent visual language across all editing interfaces
+   - Single source of truth for each UI pattern
+
+3. **Removed Redundancy**
+   - Eliminated duplicate prompt preview implementations
+   - Consolidated multiple table/editor components
+   - Unified hook selection and slide generation flow
