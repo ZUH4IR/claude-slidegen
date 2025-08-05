@@ -234,6 +234,20 @@ export async function fetchMusicDetails(
           } else {
             console.log(`[EnsembleAPI] No share_url found in response`)
           }
+          
+          // Also log play_url for debugging
+          if (musicData.play_url) {
+            console.log(`[EnsembleAPI] Found play_url:`, musicData.play_url)
+          }
+          
+          // Check for multi_bit_rate_play_info as alternative source
+          if (!musicData.play_url && musicData.multi_bit_rate_play_info && Array.isArray(musicData.multi_bit_rate_play_info)) {
+            const playInfo = musicData.multi_bit_rate_play_info.find(info => info.play_addr?.url_list?.length > 0)
+            if (playInfo) {
+              musicData.play_url = playInfo.play_addr
+              console.log(`[EnsembleAPI] Found play_url in multi_bit_rate_play_info:`, musicData.play_url)
+            }
+          }
         } catch (err) {
           console.error(`[EnsembleAPI] Error extracting share_url:`, err)
         }

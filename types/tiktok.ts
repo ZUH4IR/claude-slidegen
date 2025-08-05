@@ -63,7 +63,12 @@ export const musicTrackSchema = z.object({
   share_info: z.object({
     share_url: z.string().optional()
   }).passthrough().optional(),
-  share_url: z.string().optional()
+  share_url: z.string().optional(),
+  multi_bit_rate_play_info: z.array(z.object({
+    play_addr: z.object({
+      url_list: z.array(z.string())
+    }).optional()
+  }).passthrough()).optional()
 }).passthrough().transform(data => ({
   ...data,
   id: String(data.id_str || data.id || data.mid || ''),

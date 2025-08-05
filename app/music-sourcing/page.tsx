@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { useSearchParams } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, Music, Copy, AlertCircle, Play, Pause, FolderOpen, FileText, Save, CheckCircle, ExternalLink, Video, Trash2, Plus } from 'lucide-react'
+import { Loader2, Music, Copy, AlertCircle, Play, Pause, FolderOpen, FileText, Save, CheckCircle, ExternalLink, Video, Trash2, Plus, Download, Link } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Slider } from '@/components/ui/slider'
@@ -19,7 +19,7 @@ import { ColumnDef } from '@tanstack/react-table'
 import type { MusicTrack } from '@/types/tiktok'
 import pLimit from 'p-limit'
 import { cn } from '@/lib/utils'
-import { TikTokSoundLink } from '@/components/TikTokSoundLink'
+import * as XLSX from 'xlsx'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,8 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 const formSchema = z.object({
-  usernames: z.string().min(1, 'At least one username is required'),
-  depth: z.number().min(1).max(10).default(3)
+  depth: z.number().min(1).max(10)
 })
 
 type FormData = z.infer<typeof formSchema>
@@ -40,6 +39,21 @@ interface ProcessedTrack extends MusicTrack {
   localUsageCount: number
   firstSeen: Date
   lastSeen: Date
+  soundUrl: string
+  share_url?: string
+  play_url?: {
+    url_list: string[]
+  }
+  sourceVideos?: Array<{
+    id: string
+    desc: string
+    author: string
+    url: string
+  }>
+}
+
+interface SavedTrackDisplay extends MusicTrack {
+  localUsageCount: number
   soundUrl: string
   share_url?: string
   play_url?: {
@@ -72,7 +86,6 @@ export default function MusicSourcingPage() {
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      usernames: '',
       depth: 3
     }
   })
@@ -146,25 +159,58 @@ export default function MusicSourcingPage() {
     loadCampaignAccounts()
   }, [selectedClient, selectedCampaign, form])
   
-  // Prefill accounts if coming from campaign
+  // Prefill client/campaign if coming from URL
   useEffect(() => {
-    const accounts = searchParams.get('accounts')
     const client = searchParams.get('client')
     const campaign = searchParams.get('campaign')
     
     if (client) setSelectedClient(client)
     if (campaign) setSelectedCampaign(campaign)
-    
-    if (accounts) {
-      form.setValue('usernames', decodeURIComponent(accounts))
-    }
-  }, [searchParams, form])
+  }, [searchParams])
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
     toast({
       title: 'Copied!',
       description: 'Sound link copied to clipboard'
+    })
+  }
+
+  const downloadAsCSV = (data: ProcessedTrack[], filename: string) => {
+    // Prepare data for CSV
+    const csvData = data.map(track => ({
+      'Track Title': track.title,
+      'Artist': track.author,
+      'Total Videos': track.user_count || 0,
+      'Used by Accounts': track.localUsageCount,
+      'TikTok URL': track.share_url || track.soundUrl || generateTikTokUrl(track),
+      'Track ID': track.id
+    }))
+
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(csvData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Music Tracks')
+
+    // Generate and download
+    XLSX.writeFile(wb, filename)
+    
+    toast({
+      title: 'Downloaded!',
+      description: `${data.length} tracks exported to ${filename}`
+    })
+  }
+
+  const copyAllLinks = (data: ProcessedTrack[]) => {
+    const links = data.map(track => 
+      track.share_url || track.soundUrl || generateTikTokUrl(track)
+    ).join('\n')
+    
+    navigator.clipboard.writeText(links)
+    
+    toast({
+      title: 'Copied!',
+      description: `${data.length} music links copied to clipboard`
     })
   }
 
@@ -221,6 +267,8 @@ export default function MusicSourcingPage() {
         local_usage: track.localUsageCount,
         sound_url: track.share_url || generateTikTokUrl(track),
         share_url: track.share_url || undefined,
+        play_url: track.play_url,
+        sourceVideos: track.sourceVideos,
         saved_at: new Date().toISOString()
       }
       
@@ -260,6 +308,59 @@ export default function MusicSourcingPage() {
       toast({
         title: 'Save Failed',
         description: error instanceof Error ? error.message : 'Failed to save track',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const saveCampaignAccounts = async () => {
+    if (!selectedClient || !selectedCampaign) {
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      // Load current campaign data
+      const loadResponse = await fetch(`/api/prompts/load?type=campaign&client=${selectedClient}&campaign=${selectedCampaign}`)
+      if (!loadResponse.ok) throw new Error('Failed to load campaign')
+      
+      const campaignData = await loadResponse.json()
+      
+      // Update frontmatter with new tracked accounts
+      const updatedFrontmatter = {
+        ...campaignData.frontmatter,
+        tracked_accounts: campaignAccounts
+      }
+      
+      // Determine the file path for the campaign
+      const currentVersion = campaignData.frontmatter?.version || 1
+      const filePath = `${selectedClient}/${selectedCampaign}_v${currentVersion}.md`
+      
+      // Save updated campaign
+      const saveResponse = await fetch('/api/prompts/save-structured', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: filePath,
+          content: campaignData.content,
+          frontmatter: updatedFrontmatter
+        })
+      })
+      
+      if (!saveResponse.ok) throw new Error('Failed to save campaign')
+      
+      toast({
+        title: 'Accounts Saved!',
+        description: `Tracked accounts updated for ${selectedCampaign} campaign`
+      })
+      
+    } catch (error) {
+      console.error('Error saving accounts:', error)
+      toast({
+        title: 'Save Failed',
+        description: error instanceof Error ? error.message : 'Failed to save accounts',
         variant: 'destructive'
       })
     } finally {
@@ -358,6 +459,8 @@ export default function MusicSourcingPage() {
           local_usage: track.localUsageCount,
           sound_url: track.share_url || generateTikTokUrl(track),
           share_url: track.share_url || undefined,
+          play_url: track.play_url,
+          sourceVideos: track.sourceVideos,
           saved_at: new Date().toISOString()
         }))
       
@@ -411,6 +514,9 @@ export default function MusicSourcingPage() {
   }
 
   const playTrack = (track: ProcessedTrack) => {
+    console.log('[Music Sourcing] playTrack called with:', track)
+    console.log('[Music Sourcing] play_url:', track.play_url)
+    
     if (playingTrackId === track.id) {
       // Stop playing
       if (audioRef.current) {
@@ -426,6 +532,8 @@ export default function MusicSourcingPage() {
       
       // Check if track has play_url
       const playUrl = track.play_url?.url_list?.[0]
+      console.log('[Music Sourcing] Extracted playUrl:', playUrl)
+      
       if (playUrl) {
         // Create new audio element
         audioRef.current = new Audio(playUrl)
@@ -445,6 +553,7 @@ export default function MusicSourcingPage() {
         
         setPlayingTrackId(track.id)
       } else {
+        console.log('[Music Sourcing] No play URL available for track')
         toast({
           title: 'No Audio Available',
           description: 'This track does not have a playable audio URL.',
@@ -463,45 +572,53 @@ export default function MusicSourcingPage() {
     }
   }, [])
 
-  const columns: ColumnDef<ProcessedTrack>[] = [
-    {
-      id: 'select',
-      header: ({ table }) => (
-        <input
-          type="checkbox"
-          checked={tracks.length > 0 && selectedTracks.size === tracks.length}
-          onChange={(e) => {
-            if (e.target.checked) {
-              setSelectedTracks(new Set(tracks.map(t => t.id)))
-            } else {
-              setSelectedTracks(new Set())
-            }
-          }}
-          className="rounded border-gray-300"
-        />
-      ),
-      cell: ({ row }) => (
-        <input
-          type="checkbox"
-          checked={selectedTracks.has(row.original.id)}
-          onChange={(e) => {
-            const newSelected = new Set(selectedTracks)
-            if (e.target.checked) {
-              newSelected.add(row.original.id)
-            } else {
-              newSelected.delete(row.original.id)
-            }
-            setSelectedTracks(newSelected)
-          }}
-          className="rounded border-gray-300"
-        />
-      )
-    },
+  const createColumns = (showDelete: boolean = false): ColumnDef<ProcessedTrack | SavedTrackDisplay>[] => {
+    const columns: ColumnDef<ProcessedTrack>[] = []
+    
+    // Only add select column for search results, not for saved tracks
+    if (!showDelete) {
+      columns.push({
+        id: 'select',
+        header: ({ table }) => (
+          <input
+            type="checkbox"
+            checked={tracks.length > 0 && selectedTracks.size === tracks.length}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setSelectedTracks(new Set(tracks.map(t => t.id)))
+              } else {
+                setSelectedTracks(new Set())
+              }
+            }}
+            className="rounded border-gray-300"
+          />
+        ),
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            checked={selectedTracks.has(row.original.id)}
+            onChange={(e) => {
+              const newSelected = new Set(selectedTracks)
+              if (e.target.checked) {
+                newSelected.add(row.original.id)
+              } else {
+                newSelected.delete(row.original.id)
+              }
+              setSelectedTracks(newSelected)
+            }}
+            className="rounded border-gray-300"
+          />
+        )
+      })
+    }
+    
+    // Add the rest of the columns
+    columns.push(
     {
       id: 'play',
       header: '',
       cell: ({ row }) => {
-        const hasAudio = row.original.play_url?.url_list?.length > 0
+        const hasAudio = row.original.play_url?.url_list?.[0] || false
         return (
           <Button
             variant="ghost"
@@ -520,133 +637,137 @@ export default function MusicSourcingPage() {
         )
       }
     },
-    {
-      accessorKey: 'title',
-      header: 'Track Title',
-      cell: ({ row }) => (
-        <div className="font-medium">{row.original.title}</div>
-      )
-    },
-    {
-      accessorKey: 'author',
-      header: 'Artist'
-    },
-    {
-      accessorKey: 'user_count',
-      header: 'Total Videos',
-      cell: ({ row }) => {
-        console.log('[Music Sourcing] Rendering user_count cell, row:', row.original)
-        const count = row.original.user_count || 0
-        return <div className="text-right">{count.toLocaleString()}</div>
-      }
-    },
-    {
-      accessorKey: 'localUsageCount',
-      header: 'Used by Accounts',
-      cell: ({ row }) => (
-        <div className="text-right">{row.original.localUsageCount}</div>
-      )
-    },
-    {
-      accessorKey: 'firstSeen',
-      header: 'First Seen',
-      cell: ({ row }) => (
-        <div>{new Date(row.original.firstSeen).toLocaleDateString()}</div>
-      )
-    },
-    {
-      accessorKey: 'lastSeen',
-      header: 'Last Seen',
-      cell: ({ row }) => (
-        <div>{new Date(row.original.lastSeen).toLocaleDateString()}</div>
-      )
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      cell: ({ row }) => {
-        const isAlreadySaved = savedTracks.some(t => t.id === row.original.id)
-        
-        return (
-          <div className="flex items-center gap-2">
-            {selectedClient && selectedCampaign && (
-              <Button
-                variant={isAlreadySaved ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => saveTrackToCampaign(row.original)}
-                disabled={isSaving || isAlreadySaved}
-                title={isAlreadySaved ? "Already saved" : "Save to campaign"}
-              >
-                {isAlreadySaved ? (
-                  <>
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Saved
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-3 w-3 mr-1" />
-                    Save
-                  </>
-                )}
-              </Button>
-            )}
-            <TikTokSoundLink
-              trackId={row.original.id}
-              trackTitle={row.original.title}
-              trackAuthor={row.original.author}
-              shareUrl={row.original.share_url}
-            />
-            {row.original.sourceVideos && row.original.sourceVideos.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Video className="h-3 w-3 mr-1" />
-                    Videos ({row.original.sourceVideos.length})
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-96">
-                  <DropdownMenuLabel>Source Videos Using This Sound</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <div className="max-h-64 overflow-y-auto">
-                    {row.original.sourceVideos.map((video, idx) => (
-                      <a
-                        key={idx}
-                        href={video.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block p-2 hover:bg-accent rounded-sm"
-                      >
-                        <div className="text-xs font-medium">@{video.author}</div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {video.desc || 'No description'}
-                        </div>
-                        <div className="text-xs text-blue-600 hover:underline mt-1">
-                          {video.url}
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
+      {
+        accessorKey: 'title',
+        header: 'Track Title',
+        cell: ({ row }) => {
+          // Use share_url if available, otherwise generate URL
+          const musicUrl = row.original.share_url || row.original.soundUrl || generateTikTokUrl(row.original)
+          
+          return (
+            <a
+              href={musicUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+            >
+              {row.original.title}
+            </a>
+          )
+        }
+      },
+      {
+        accessorKey: 'author',
+        header: 'Artist'
+      },
+      {
+        accessorKey: 'user_count',
+        header: 'Total Videos',
+        cell: ({ row }) => {
+          console.log('[Music Sourcing] Rendering user_count cell, row:', row.original)
+          const count = row.original.user_count || 0
+          return <div className="text-right">{count.toLocaleString()}</div>
+        }
+      },
+      {
+        accessorKey: 'localUsageCount',
+        header: 'Used by Accounts',
+        cell: ({ row }) => (
+          <div className="text-right">{row.original.localUsageCount}</div>
         )
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        cell: ({ row }) => {
+          const isAlreadySaved = savedTracks.some(t => t.id === row.original.id)
+          
+          return (
+            <div className="flex items-center gap-2">
+              {showDelete ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => deleteTrackFromCampaign(row.original.id)}
+                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                  title="Delete track"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              ) : (
+                selectedClient && selectedCampaign && (
+                  <Button
+                    variant={isAlreadySaved ? "secondary" : "outline"}
+                    size="sm"
+                    onClick={() => saveTrackToCampaign(row.original)}
+                    disabled={isSaving || isAlreadySaved}
+                    title={isAlreadySaved ? "Already saved" : "Save to campaign"}
+                  >
+                    {isAlreadySaved ? (
+                      <>
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Saved
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-3 w-3 mr-1" />
+                        Save
+                      </>
+                    )}
+                  </Button>
+                )
+              )}
+              {row.original.sourceVideos && row.original.sourceVideos.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Video className="h-3 w-3 mr-1" />
+                      Videos ({row.original.sourceVideos.length})
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-96">
+                    <DropdownMenuLabel>Source Videos Using This Sound</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <div className="max-h-64 overflow-y-auto">
+                      {row.original.sourceVideos.map((video, idx) => (
+                        <a
+                          key={idx}
+                          href={video.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block p-2 hover:bg-accent rounded-sm"
+                        >
+                          <div className="text-xs font-medium">@{video.author}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {video.desc || 'No description'}
+                          </div>
+                          <div className="text-xs text-blue-600 hover:underline mt-1">
+                            {video.url}
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          )
+        }
       }
-    }
-  ]
+    )
+    
+    return columns
+  }
 
   const onSubmit = async (data: FormData) => {
     try {
       setIsLoading(true)
       setTracks([])
 
-      // Parse usernames
-      const usernames = data.usernames
-        .split(/[\n,]/)
-        .map(u => u.trim().replace('@', ''))
-        .filter(Boolean)
+      // Use campaign accounts
+      const usernames = campaignAccounts
       
-      console.log('[Music Sourcing] Parsed usernames:', usernames)
+      console.log('[Music Sourcing] Using campaign accounts:', usernames)
       
       if (usernames.length === 0) {
         throw new Error('No valid usernames provided')
@@ -784,6 +905,7 @@ export default function MusicSourcingPage() {
             
             const result = await response.json()
             console.log(`[Music Sourcing] Music ${id} result:`, result)
+            console.log(`[Music Sourcing] Music ${id} play_url:`, result.music?.play_url)
             
             return result.music || null
           })
@@ -831,7 +953,8 @@ export default function MusicSourcingPage() {
                 .trim()
               return `https://www.tiktok.com/music/${titleSlug}-${track.id}`
             })(),
-            share_url: track.share_url || undefined, // Pass through the share_url from API
+            share_url: track.share_url || undefined,
+            play_url: track.play_url, // Explicitly preserve play_url
             sourceVideos: usage.sourceVideos.slice(0, 10) // Limit to first 10 videos
           }
           
@@ -946,10 +1069,40 @@ export default function MusicSourcingPage() {
             </div>
           </div>
           
-          {campaignAccounts.length > 0 && (
-            <div className="mt-4 p-3 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground mb-1">Tracked accounts from campaign:</p>
-              <p className="text-sm font-mono">{campaignAccounts.map(acc => `@${acc}`).join(', ')}</p>
+          {selectedClient && selectedCampaign && (
+            <div className="mt-4 space-y-2">
+              <Label htmlFor="tracked-accounts">Tracked accounts from campaign:</Label>
+              <Textarea
+                id="tracked-accounts"
+                value={campaignAccounts.join('\n')}
+                onChange={(e) => {
+                  const newAccounts = e.target.value
+                    .split('\n')
+                    .map(acc => acc.trim().replace('@', ''))
+                    .filter(Boolean)
+                  setCampaignAccounts(newAccounts)
+                }}
+                placeholder="@username1&#10;@username2&#10;@username3"
+                className="min-h-[100px] font-mono"
+              />
+              <Button
+                onClick={saveCampaignAccounts}
+                disabled={isSaving}
+                size="sm"
+                variant="outline"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Accounts
+                  </>
+                )}
+              </Button>
             </div>
           )}
           
@@ -982,29 +1135,11 @@ export default function MusicSourcingPage() {
         <CardHeader>
           <CardTitle>Scan Accounts</CardTitle>
           <CardDescription>
-            Enter TikTok usernames to analyze their recent music usage
+            Analyze recent music usage from tracked campaign accounts
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="usernames">TikTok Usernames</Label>
-              <Textarea
-                id="usernames"
-                placeholder="@username1&#10;@username2&#10;@username3"
-                className="min-h-[120px] font-mono"
-                {...form.register('usernames')}
-              />
-              <p className="text-sm text-muted-foreground">
-                One username per line, @ symbol optional
-              </p>
-              {form.formState.errors.usernames && (
-                <p className="text-sm text-red-500">
-                  {form.formState.errors.usernames.message}
-                </p>
-              )}
-            </div>
-
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="depth">Scan Depth</Label>
@@ -1028,7 +1163,7 @@ export default function MusicSourcingPage() {
 
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !selectedClient || !selectedCampaign || campaignAccounts.length === 0}
               className="w-full"
               size="lg"
             >
@@ -1037,10 +1172,20 @@ export default function MusicSourcingPage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Scanning accounts...
                 </>
+              ) : !selectedClient || !selectedCampaign ? (
+                <>
+                  <AlertCircle className="mr-2 h-4 w-4" />
+                  Select Campaign First
+                </>
+              ) : campaignAccounts.length === 0 ? (
+                <>
+                  <AlertCircle className="mr-2 h-4 w-4" />
+                  Add Tracked Accounts
+                </>
               ) : (
                 <>
                   <Music className="mr-2 h-4 w-4" />
-                  Fetch Music
+                  Fetch Music from {campaignAccounts.length} Accounts
                 </>
               )}
             </Button>
@@ -1059,31 +1204,49 @@ export default function MusicSourcingPage() {
                   {selectedTracks.size > 0 && ` • ${selectedTracks.size} selected`}
                 </CardDescription>
               </div>
-              {selectedTracks.size > 0 && selectedClient && selectedCampaign && (
+              <div className="flex items-center gap-2">
                 <Button
-                  onClick={saveToCampaign}
-                  disabled={isSaving}
+                  onClick={() => copyAllLinks(tracks)}
                   size="sm"
+                  variant="outline"
                 >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save {selectedTracks.size} to Campaign
-                    </>
-                  )}
+                  <Link className="mr-2 h-4 w-4" />
+                  Copy All Links
                 </Button>
-              )}
+                <Button
+                  onClick={() => downloadAsCSV(tracks, `music-tracks-${new Date().toISOString().split('T')[0]}.xlsx`)}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download CSV
+                </Button>
+                {selectedTracks.size > 0 && selectedClient && selectedCampaign && (
+                  <Button
+                    onClick={saveToCampaign}
+                    disabled={isSaving}
+                    size="sm"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save {selectedTracks.size} to Campaign
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             {console.log('[Music Sourcing] Rendering DataTable with tracks:', tracks)}
             <DataTable
-              columns={columns}
+              columns={createColumns(false)}
               data={tracks}
               searchKey="title"
               searchPlaceholder="Search tracks..."
@@ -1110,42 +1273,64 @@ export default function MusicSourcingPage() {
       {savedTracks.length > 0 && tracks.length === 0 && !form.formState.isSubmitted && (
         <Card>
           <CardHeader>
-            <CardTitle>Previously Saved Tracks</CardTitle>
-            <CardDescription>
-              Tracks saved to the {selectedCampaign} campaign
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Saved Tracks Library</CardTitle>
+                <CardDescription>
+                  {savedTracks.length} tracks saved to the {selectedCampaign} campaign
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => copyAllLinks(savedTracks.map(track => ({
+                    ...track,
+                    localUsageCount: track.local_usage || 0,
+                    soundUrl: track.sound_url || '',
+                    play_url: track.play_url,
+                    sourceVideos: track.sourceVideos || [],
+                    // Add dummy dates for copyAllLinks function compatibility
+                    firstSeen: new Date(),
+                    lastSeen: new Date()
+                  } as ProcessedTrack)))}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Link className="mr-2 h-4 w-4" />
+                  Copy All Links
+                </Button>
+                <Button
+                  onClick={() => downloadAsCSV(savedTracks.map(track => ({
+                    ...track,
+                    localUsageCount: track.local_usage || 0,
+                    soundUrl: track.sound_url || '',
+                    play_url: track.play_url,
+                    sourceVideos: track.sourceVideos || [],
+                    // Add dummy dates for downloadAsCSV function compatibility
+                    firstSeen: new Date(),
+                    lastSeen: new Date()
+                  } as ProcessedTrack)), `saved-tracks-${selectedCampaign}-${new Date().toISOString().split('T')[0]}.xlsx`)}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download CSV
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {savedTracks.map((track, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50">
-                  <div className="flex-1">
-                    <div className="font-medium text-sm">{track.title}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {track.author} • {track.user_count?.toLocaleString() || 0} videos
-                      {track.local_usage && ` • Used by ${track.local_usage} tracked accounts`}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <TikTokSoundLink
-                      trackId={track.id}
-                      trackTitle={track.title}
-                      trackAuthor={track.author}
-                      shareUrl={track.share_url}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteTrackFromCampaign(track.id)}
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                      title="Delete track"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <DataTable
+              columns={createColumns(true) as ColumnDef<SavedTrackDisplay>[]}
+              data={savedTracks.map(track => ({
+                ...track,
+                localUsageCount: track.local_usage || 0,
+                soundUrl: track.sound_url || '',
+                play_url: track.play_url,
+                sourceVideos: track.sourceVideos || []
+              } as SavedTrackDisplay))}
+              searchKey="title"
+              searchPlaceholder="Search saved tracks..."
+            />
           </CardContent>
         </Card>
       )}
