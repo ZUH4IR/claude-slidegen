@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Play, FileEdit, Shield, History, GitBranch } from 'lucide-react'
+import { Play, FileEdit, Shield, History, GitBranch, Music } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { QuickStats } from '@/components/QuickStats'
 
@@ -21,6 +21,11 @@ const navItems = [
     title: 'Graph View',
     href: '/graph',
     icon: GitBranch,
+  },
+  {
+    title: 'Music Sourcing',
+    href: '/music-sourcing',
+    icon: Music,
   },
   {
     title: 'History',

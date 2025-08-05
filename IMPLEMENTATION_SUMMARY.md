@@ -81,10 +81,29 @@ npm run dev
 - `package.json` - Added audit script and ES module type
 - `next.config.js` - Updated to ES module syntax
 
-## Next Steps (Features 6-9)
+## Completed Features (6-7)
 
-6. **JSON Schema Editor** - YAML frontmatter → schema → RJSF form
-7. **Live Lint** - Real-time validation with toast notifications
+### 6. Live Lint System ✅
+- **Core library**: `lib/linter.ts`
+- **Component**: `components/LintIndicator.tsx`
+- **Features**:
+  - Real-time linting with 500ms debounce
+  - 7 built-in rules:
+    - Line length check (max 120 chars)
+    - Banned words detection
+    - Missing headers warning
+    - Variable format validation ({{}} syntax)
+    - Trailing whitespace detection
+    - YAML frontmatter syntax check
+    - Empty sections warning
+  - Color-coded severity levels (error/warning/info)
+  - Click-to-jump to issue location in editor
+  - Auto-open popover on errors
+  - Toast notifications for new errors
+
+## Next Steps (Features 7-9)
+
+7. **JSON Schema Editor** - YAML frontmatter → schema → RJSF form
 8. **Hooks Dropdown** - "hooks only" / "hooks + bottom" selector
 9. **Review Sheet** - Enhanced Excel grid with drag-to-copy
 
@@ -113,4 +132,14 @@ npm run dev
   - Sections created with ## are highlighted in blue in form view with "Section" badge
   - Proper content generation when switching between form and raw modes
   - Voice and integration_rule fields properly handled for client prompts
+- **Blueprint Rendering Fix**: 
+  - Created `BlueprintViewer` component for proper blueprint display
+  - Parses ## Slide sections into structured cards with icons
+  - Color-coded slide types (Hook, Tension, Drama, Resolution)
+  - Shows instructions as bullet points in clean UI
+- **Preview Formatting Fix**:
+  - Created `MarkdownPreview` component for rendering markdown content
+  - Properly formats headers (# and ##) and bullet lists
+  - Replaces variables with preview values in real-time
+  - Clean typography with proper spacing
 - All components now properly installed and working without warnings

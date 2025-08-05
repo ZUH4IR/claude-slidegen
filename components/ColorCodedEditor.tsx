@@ -159,19 +159,21 @@ export function ColorCodedEditor({
   }
 
   return (
-    <div>
-      <div className="relative">
+    <div className="w-full">
+      <div className="relative overflow-hidden rounded-md">
         {/* Highlight layer */}
         <div
           ref={highlightRef}
           className={cn(
-            "absolute inset-0 overflow-hidden pointer-events-none whitespace-pre-wrap break-words",
+            "absolute inset-0 overflow-auto pointer-events-none whitespace-pre-wrap break-words",
             "font-mono text-sm p-3 leading-6",
             className
           )}
           style={{
             wordBreak: 'break-word',
-            overflowWrap: 'break-word'
+            overflowWrap: 'break-word',
+            minHeight: 'inherit',
+            maxHeight: 'inherit'
           }}
           dangerouslySetInnerHTML={{ __html: getHighlightedHtml() }}
         />
@@ -184,7 +186,7 @@ export function ColorCodedEditor({
           onScroll={handleScroll}
           placeholder={placeholder}
           className={cn(
-            "relative bg-transparent resize-y",
+            "relative bg-transparent resize-y overflow-auto",
             "font-mono text-sm leading-6",
             validationErrors.length > 0 && "border-amber-500",
             className
@@ -192,7 +194,9 @@ export function ColorCodedEditor({
           style={{
             caretColor: 'black',
             wordBreak: 'break-word',
-            overflowWrap: 'break-word'
+            overflowWrap: 'break-word',
+            minHeight: 'inherit',
+            maxHeight: 'inherit'
           }}
         />
       </div>

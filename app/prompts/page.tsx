@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { Plus, Save, FolderOpen, FileText, ChevronRight, Edit, RefreshCw, GitBranch, History, Code, Eye, Copy, Link, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Save, FolderOpen, FileText, ChevronRight, Edit, RefreshCw, GitBranch, History, Code, Eye, Copy, Link, ChevronDown, ChevronUp, Music } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import matter from 'gray-matter'
@@ -19,6 +19,11 @@ import { FolderTree } from '@/components/FolderTree'
 import { ColorCodedEditor } from '@/components/ColorCodedEditor'
 import { VersionDiff } from '@/components/VersionDiff'
 import { PromptPreview } from '@/components/PromptPreview'
+import { BlueprintViewer } from '@/components/BlueprintViewer'
+import { MarkdownPreview } from '@/components/MarkdownPreview'
+import { LintIndicator } from '@/components/LintIndicator'
+import { runLinter, LintIssue } from '@/lib/linter'
+import { JsonSchemaEditor } from '@/components/JsonSchemaEditor'
 
 interface PromptVersion {
   version: number
@@ -53,7 +58,7 @@ export default function PromptsPage() {
   const [isGlobalRules, setIsGlobalRules] = useState(false)
   const [isViewingBlueprint, setIsViewingBlueprint] = useState(false)
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set())
-  const [viewMode, setViewMode] = useState<'form' | 'raw'>('form')
+  const [viewMode, setViewMode] = useState<'form' | 'raw' | 'json'>('form')
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPreview, setShowPreview] = useState(true)
   const [showFullChain, setShowFullChain] = useState(false)
@@ -86,6 +91,7 @@ export default function PromptsPage() {
   const [audience, setAudience] = useState('')
   const [rageBaitIntensity, setRageBaitIntensity] = useState('50')
   const [campaignNotes, setCampaignNotes] = useState('')
+  const [trackedAccounts, setTrackedAccounts] = useState<string[]>([])
 
   // Preview variables
   const [previewVariables, setPreviewVariables] = useState({
@@ -96,6 +102,9 @@ export default function PromptsPage() {
   
   // Available variables for color coding
   const [availableVariables, setAvailableVariables] = useState<Array<{key: string, scope: 'global' | 'client' | 'campaign'}>>([])
+  
+  // Lint state
+  const [lintIssues, setLintIssues] = useState<LintIssue[]>([])
 
   useEffect(() => {
     loadClients()
@@ -151,7 +160,33 @@ export default function PromptsPage() {
     if (viewMode === 'form') {
       updateRawFromForm()
     }
-  }, [clientVoice, integrationRule, imageBuckets, toneStrength, ctaVariant, bannedWords, audience, rageBaitIntensity, campaignNotes, dynamicFields])
+  }, [clientVoice, integrationRule, imageBuckets, toneStrength, ctaVariant, bannedWords, audience, rageBaitIntensity, campaignNotes, trackedAccounts, dynamicFields])
+  
+  // Run linter on content change
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const issues = runLinter(rawPrompt, {
+        bannedWords: bannedWords.split(',').map(w => w.trim()).filter(Boolean),
+        maxLineLength: 120,
+        isGlobalRules,
+        isClient: isNewClient,
+        isCampaign: isNewCampaign
+      })
+      setLintIssues(issues)
+      
+      // Show toast for new errors
+      const errorCount = issues.filter(i => i.severity === 'error').length
+      if (errorCount > 0) {
+        toast({
+          title: 'Lint Errors',
+          description: `Found ${errorCount} error${errorCount > 1 ? 's' : ''} in your content`,
+          variant: 'destructive'
+        })
+      }
+    }, 500) // Debounce linting by 500ms
+    
+    return () => clearTimeout(timeoutId)
+  }, [rawPrompt, bannedWords, isGlobalRules, isNewClient, isNewCampaign, toast])
 
   const updateRawFromForm = () => {
     if (isGlobalRules) {
@@ -187,7 +222,8 @@ export default function PromptsPage() {
         status: 'active',
         audience,
         rage_bait_intensity: parseInt(rageBaitIntensity),
-        notes: campaignNotes
+        notes: campaignNotes,
+        tracked_accounts: trackedAccounts.length > 0 ? trackedAccounts : undefined
       }
       
       let content = campaignNotes
@@ -278,11 +314,14 @@ export default function PromptsPage() {
         setRageBaitIntensity((frontmatter.ragebait_intensity || frontmatter.rage_bait_intensity).toString())
       }
       if (frontmatter.campaign_notes) setCampaignNotes(frontmatter.campaign_notes)
+      if (frontmatter.tracked_accounts) {
+        setTrackedAccounts(Array.isArray(frontmatter.tracked_accounts) ? frontmatter.tracked_accounts : [])
+      }
       
       // Generate form fields for any non-standard frontmatter keys
       const standardKeys = ['version', 'status', 'description', 'client_voice', 'integration_rule', 
                            'image_buckets', 'tone_strength', 'cta_variant', 'banned_words', 
-                           'audience', 'ragebait_intensity', 'rage_bait_intensity', 'campaign_notes']
+                           'audience', 'ragebait_intensity', 'rage_bait_intensity', 'campaign_notes', 'tracked_accounts']
       
       const generatedFields: FormField[] = []
       Object.entries(frontmatter).forEach(([key, value]) => {
@@ -339,6 +378,7 @@ export default function PromptsPage() {
       setIsGlobalRules(true)
       setIsNewClient(false)
       setIsNewCampaign(false)
+      setIsViewingBlueprint(false)
       setSelectedPath('global/rules')
       
       // Set raw prompt
@@ -368,6 +408,7 @@ export default function PromptsPage() {
       setIsNewClient(true)
       setIsNewCampaign(false)
       setIsGlobalRules(false)
+      setIsViewingBlueprint(false)
       setClientName(clientName)
       setSelectedPath(`clients/${clientName}/_brand`)
       
@@ -441,6 +482,7 @@ export default function PromptsPage() {
       setIsNewClient(false)
       setIsNewCampaign(true)
       setIsGlobalRules(false)
+      setIsViewingBlueprint(false)
       setCampaignName(campaignName)
       setSelectedPath(`clients/${clientName}/${campaignName}`)
       
@@ -831,6 +873,7 @@ export default function PromptsPage() {
     setAudience('')
     setRageBaitIntensity('50')
     setCampaignNotes('')
+    setTrackedAccounts([])
     setRawPrompt('')
     setDynamicFields([])
   }
@@ -898,43 +941,6 @@ export default function PromptsPage() {
     }
   }
 
-  const runLinter = () => {
-    const issues: string[] = []
-    
-    // Check character caps
-    const lines = rawPrompt.split('\n')
-    lines.forEach((line, idx) => {
-      if (line.length > 120 && !line.startsWith('#')) {
-        issues.push(`Line ${idx + 1}: Exceeds 120 characters`)
-      }
-    })
-    
-    // Check for missing hashtags
-    if (!rawPrompt.includes('#')) {
-      issues.push('Missing section headers (use # or ##)')
-    }
-    
-    // Check for banned words
-    const bannedList = bannedWords.split(',').map(w => w.trim()).filter(Boolean)
-    bannedList.forEach(word => {
-      if (rawPrompt.toLowerCase().includes(word.toLowerCase())) {
-        issues.push(`Contains banned word: "${word}"`)
-      }
-    })
-    
-    if (issues.length === 0) {
-      toast({
-        title: 'Linter Results',
-        description: 'No issues found!'
-      })
-    } else {
-      toast({
-        title: 'Linter Results',
-        description: `Found ${issues.length} issues`,
-        variant: 'destructive'
-      })
-    }
-  }
 
   // Generate preview with variables replaced
   const previewContent = useMemo(() => {
@@ -1072,15 +1078,26 @@ export default function PromptsPage() {
                         >
                           <span className="text-lg">Δ</span>
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={runLinter}
-                          title="Linter (⚠)"
-                          className="h-8 w-8 p-0"
-                        >
-                          <span className="text-lg">⚠</span>
-                        </Button>
+                        <LintIndicator 
+                          issues={lintIssues}
+                          onIssuClick={(issue) => {
+                            if (issue.line && viewMode === 'raw') {
+                              // Find the textarea and scroll to the line
+                              const textarea = document.querySelector('.relative textarea') as HTMLTextAreaElement
+                              if (textarea) {
+                                const lines = textarea.value.split('\n')
+                                let charCount = 0
+                                for (let i = 0; i < Math.min(issue.line - 1, lines.length); i++) {
+                                  charCount += lines[i].length + 1 // +1 for newline
+                                }
+                                textarea.focus()
+                                textarea.setSelectionRange(charCount, charCount)
+                                const lineHeight = parseInt(window.getComputedStyle(textarea).lineHeight)
+                                textarea.scrollTop = (issue.line - 5) * lineHeight
+                              }
+                            }
+                          }}
+                        />
                       </div>
                       )}
                       {!isViewingBlueprint && (
@@ -1092,10 +1109,9 @@ export default function PromptsPage() {
                         History
                       </Button>
                       )}
-                      {!isViewingBlueprint && (
-                        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'form' | 'raw')}>
+                      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'form' | 'raw' | 'json')}>
                         <TabsList>
-                          <TabsTrigger value="form">
+                          <TabsTrigger value="form" disabled={isViewingBlueprint}>
                             <Eye className="h-4 w-4 mr-1" />
                             Form
                           </TabsTrigger>
@@ -1103,14 +1119,19 @@ export default function PromptsPage() {
                             <Code className="h-4 w-4 mr-1" />
                             Raw
                           </TabsTrigger>
+                          <TabsTrigger value="json" disabled={isGlobalRules || isViewingBlueprint}>
+                            <FileText className="h-4 w-4 mr-1" />
+                            Schema
+                          </TabsTrigger>
                         </TabsList>
                       </Tabs>
-                      )}
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {viewMode === 'form' && !isViewingBlueprint ? (
+                  {isViewingBlueprint && viewMode === 'raw' ? (
+                    <BlueprintViewer content={rawPrompt} />
+                  ) : viewMode === 'form' && !isViewingBlueprint ? (
                     <div className="space-y-4">
                       {isGlobalRules ? (
                         <>
@@ -1148,15 +1169,17 @@ export default function PromptsPage() {
                             />
                           </div>
 
-                          <div>
+                          <div className="space-y-2">
                             <Label htmlFor="integration-rule">Integration Rule</Label>
-                            <ColorCodedEditor
-                              value={integrationRule}
-                              onChange={setIntegrationRule}
-                              variables={availableVariables}
-                              className="min-h-[80px] text-sm"
-                              placeholder="e.g., mention vibit on slide {{product_slide}}"
-                            />
+                            <div className="overflow-hidden rounded-md border">
+                              <ColorCodedEditor
+                                value={integrationRule}
+                                onChange={setIntegrationRule}
+                                variables={availableVariables}
+                                className="min-h-[80px] max-h-[200px] text-sm border-0"
+                                placeholder="e.g., mention vibit on slide {{product_slide}}"
+                              />
+                            </div>
                           </div>
 
                           <div>
@@ -1250,16 +1273,95 @@ export default function PromptsPage() {
                             </div>
                           </div>
 
-                          <div>
+                          <div className="space-y-2">
                             <Label htmlFor="campaign-notes">Campaign Notes</Label>
-                            <ColorCodedEditor
-                              value={campaignNotes}
-                              onChange={setCampaignNotes}
-                              variables={availableVariables}
-                              className="min-h-[120px] text-sm"
-                              placeholder="Campaign-specific rules and notes"
-                            />
+                            <div className="overflow-hidden rounded-md border">
+                              <ColorCodedEditor
+                                value={campaignNotes}
+                                onChange={setCampaignNotes}
+                                variables={availableVariables}
+                                className="min-h-[120px] max-h-[300px] text-sm border-0"
+                                placeholder="Campaign-specific rules and notes"
+                              />
+                            </div>
                           </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="tracked-accounts">Tracked TikTok Accounts</Label>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const params = new URLSearchParams()
+                                  if (selectedClient) params.append('client', selectedClient)
+                                  if (campaignName) params.append('campaign', campaignName)
+                                  if (trackedAccounts.length > 0) {
+                                    params.append('accounts', trackedAccounts.join('\n'))
+                                  }
+                                  window.open(`/music-sourcing?${params.toString()}`, '_blank')
+                                }}
+                              >
+                                <Music className="h-3 w-3 mr-1" />
+                                Source Music
+                              </Button>
+                            </div>
+                            <Textarea
+                              id="tracked-accounts"
+                              value={trackedAccounts.join('\n')}
+                              onChange={(e) => setTrackedAccounts(
+                                e.target.value.split('\n').map(a => a.trim()).filter(Boolean)
+                              )}
+                              placeholder="@account1&#10;@account2&#10;@account3"
+                              className="min-h-[80px] font-mono text-sm"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Enter TikTok accounts to track for music trends (one per line)
+                            </p>
+                          </div>
+                          
+                          {frontmatter?.saved_tracks && frontmatter.saved_tracks.length > 0 && (
+                            <div className="space-y-2">
+                              <Label>Saved Music Tracks</Label>
+                              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-medium">
+                                    {frontmatter.saved_tracks.length} tracks saved from music sourcing
+                                  </p>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      const params = new URLSearchParams()
+                                      if (selectedClient) params.append('client', selectedClient)
+                                      if (campaignName) params.append('campaign', campaignName)
+                                      window.open(`/music-sourcing?${params.toString()}`, '_blank')
+                                    }}
+                                  >
+                                    <Music className="h-3 w-3 mr-1" />
+                                    View All
+                                  </Button>
+                                </div>
+                                <div className="space-y-1">
+                                  {frontmatter.saved_tracks.slice(0, 5).map((track: any, idx: number) => (
+                                    <div key={idx} className="flex items-center justify-between text-xs">
+                                      <span className="truncate flex-1">
+                                        {track.title} - {track.author}
+                                      </span>
+                                      <span className="text-muted-foreground ml-2">
+                                        {track.user_count?.toLocaleString() || 0} videos
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {frontmatter.saved_tracks.length > 5 && (
+                                    <p className="text-xs text-muted-foreground italic">
+                                      and {frontmatter.saved_tracks.length - 5} more...
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </>
                       )}
 
@@ -1312,13 +1414,15 @@ export default function PromptsPage() {
                               </Button>
                             </div>
                             {field.type === 'textarea' ? (
-                              <ColorCodedEditor
-                                value={field.value}
-                                onChange={(value) => updateDynamicField(field.key, { value })}
-                                variables={availableVariables}
-                                className="min-h-[100px] text-sm"
-                                placeholder={field.key.startsWith('fm_') ? `Enter ${field.label.toLowerCase()}...` : "Section content..."}
-                              />
+                              <div className="overflow-hidden rounded-md border">
+                                <ColorCodedEditor
+                                  value={field.value}
+                                  onChange={(value) => updateDynamicField(field.key, { value })}
+                                  variables={availableVariables}
+                                  className="min-h-[100px] max-h-[250px] text-sm border-0"
+                                  placeholder={field.key.startsWith('fm_') ? `Enter ${field.label.toLowerCase()}...` : "Section content..."}
+                                />
+                              </div>
                             ) : field.type === 'checkbox' ? (
                               <div className="flex items-center space-x-2">
                                 <input
@@ -1348,25 +1452,24 @@ export default function PromptsPage() {
                         ))}
                       </div>
                     </div>
-                  ) : (
-                    <div className="h-full">
-                      <ColorCodedEditor
-                        value={rawPrompt}
-                        onChange={(value) => {
-                          setRawPrompt(value)
-                          // Parse sections in real-time for immediate feedback
-                          parseRawPrompt(value)
-                        }}
-                        variables={availableVariables}
-                        maxLineLength={120}
-                        bannedWords={bannedWords.split(',').map(s => s.trim()).filter(Boolean)}
-                        className={cn(
-                          "resize-none",
-                          isNewCampaign ? "min-h-[900px]" : "min-h-[600px]"
-                        )}
-                        placeholder="Enter raw prompt with frontmatter..."
-                      />
-                      <div className="flex items-center justify-between mt-2">
+                  ) : viewMode === 'raw' ? (
+                    <div className="space-y-2">
+                      <div className="overflow-hidden rounded-md border" style={{ height: isNewCampaign ? '600px' : '500px' }}>
+                        <ColorCodedEditor
+                          value={rawPrompt}
+                          onChange={(value) => {
+                            setRawPrompt(value)
+                            // Parse sections in real-time for immediate feedback
+                            parseRawPrompt(value)
+                          }}
+                          variables={availableVariables}
+                          maxLineLength={120}
+                          bannedWords={bannedWords.split(',').map(s => s.trim()).filter(Boolean)}
+                          className="h-full w-full resize-none border-0"
+                          placeholder="Enter raw prompt with frontmatter..."
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">
                           Use ## to create new sections that will appear as form fields
                         </p>
@@ -1377,7 +1480,22 @@ export default function PromptsPage() {
                         )}
                       </div>
                     </div>
-                  )}
+                  ) : viewMode === 'json' ? (
+                    <div className="space-y-4">
+                      <JsonSchemaEditor
+                        value={frontmatter}
+                        onChange={(newFrontmatter) => {
+                          setFrontmatter(newFrontmatter)
+                          // Update raw prompt with new frontmatter
+                          const parsed = matter(rawPrompt)
+                          const updatedRaw = matter.stringify(parsed.content, newFrontmatter)
+                          setRawPrompt(updatedRaw)
+                          // Update form fields
+                          parseRawPrompt(updatedRaw)
+                        }}
+                      />
+                    </div>
+                  ) : null}
 
                   {!isViewingBlueprint && (
                     <Button 
@@ -1495,7 +1613,10 @@ export default function PromptsPage() {
                         />
                       ) : (
                         <div className="p-4 bg-muted rounded-lg max-h-[400px] overflow-y-auto">
-                          <pre className="text-xs whitespace-pre-wrap">{previewContent}</pre>
+                          <MarkdownPreview 
+                            content={previewContent} 
+                            variables={previewVariables}
+                          />
                         </div>
                       )}
                     </div>
