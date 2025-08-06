@@ -431,7 +431,7 @@ export default function PromptsPage() {
       if (treeJson.clients) {
         const clientNodes = Object.entries(treeJson.clients).map(([clientName, clientData]: [string, any]) => ({
           name: clientName,
-          type: 'brand',
+          type: 'client',
           hasPrompt: clientData.hasClient,
           children: clientData.campaigns?.map((campaign: string) => ({
             name: campaign,
@@ -504,7 +504,7 @@ export default function PromptsPage() {
       setIsGlobalRules(false)
       setIsViewingBlueprint(false)
       setClientName(clientName)
-      setSelectedPath(`clients/${clientName}/_brand`)
+      setSelectedPath(`clients/${clientName}/_client`)
       
       // Handle case where content might be empty but valid
       const content = data.content || ''
@@ -729,7 +729,7 @@ export default function PromptsPage() {
     try {
       const fileName = isNewCampaign 
         ? `${campaignName}_v${version}.md`
-        : `_brand_v${version}.md`
+        : `_client_v${version}.md`
       
       const res = await fetch(`/api/prompts/load?type=${isNewCampaign ? 'campaign' : 'client'}&client=${selectedClient}&campaign=${campaignName}&version=${version}`)
       const data = await res.json()
@@ -974,7 +974,7 @@ export default function PromptsPage() {
       
       const fileName = isNewCampaign 
         ? `${selectedClient}/${campaignName}_v${nextVersion}.md`
-        : `${selectedClient}/_brand_v${nextVersion}.md`
+        : `${selectedClient}/_client_v${nextVersion}.md`
 
       await fetch('/api/prompts/save-structured', {
         method: 'POST',
@@ -1069,7 +1069,7 @@ export default function PromptsPage() {
         body: JSON.stringify({
           type: 'campaign',
           name: campaignName,
-          brand: selectedClient
+          client: selectedClient
         })
       })
       
@@ -1093,15 +1093,15 @@ export default function PromptsPage() {
     }
   }
 
-  const handleDeleteBrand = async () => {
-    if (!confirm(`Are you sure you want to delete the brand "${clientName}"? This will delete all campaigns under this brand.`)) return
+  const handleDeleteClient = async () => {
+    if (!confirm(`Are you sure you want to delete the client "${clientName}"? This will delete all campaigns under this client.`)) return
     
     try {
       const response = await fetch('/api/prompts/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'brand',
+          type: 'client',
           name: clientName
         })
       })
@@ -1109,18 +1109,18 @@ export default function PromptsPage() {
       if (response.ok) {
         toast({
           title: 'Success',
-          description: `Brand ${clientName} deleted successfully`
+          description: `Client ${clientName} deleted successfully`
         })
         resetForm()
         loadClients() // Refresh the tree
       } else {
-        throw new Error('Failed to delete brand')
+        throw new Error('Failed to delete client')
       }
     } catch (error) {
-      console.error('Error deleting brand:', error)
+      console.error('Error deleting client:', error)
       toast({
         title: 'Error',
-        description: 'Failed to delete brand',
+        description: 'Failed to delete client',
         variant: 'destructive'
       })
     }
@@ -1235,18 +1235,18 @@ export default function PromptsPage() {
       <div className="w-80 border-r bg-muted/10 overflow-y-auto">
         <PromptTree
           data={treeData}
-          onSelect={(type, brand, campaign) => {
+          onSelect={(type, client, campaign) => {
             if (type === 'global') {
               handleEditGlobalRules()
             } else if (type === 'template') {
               // Handle blueprint/template viewing
-              if (brand) {
-                handleViewBlueprint(brand)
+              if (client) {
+                handleViewBlueprint(client)
               }
-            } else if (type === 'brand' && brand) {
-              handleEditClient(brand)
-            } else if (type === 'campaign' && brand && campaign) {
-              handleEditCampaign(brand, campaign)
+            } else if (type === 'client' && client) {
+              handleEditClient(client)
+            } else if (type === 'campaign' && client && campaign) {
+              handleEditCampaign(client, campaign)
             }
           }}
           onRefresh={loadClients}
@@ -1272,7 +1272,7 @@ export default function PromptsPage() {
                     <div>
                       <CardTitle>
                         {isViewingBlueprint ? 'Edit Blueprint' : 
-                         selectedType === 'edit' ? 'Edit' : 'Create New'} {isViewingBlueprint ? '' : isGlobalRules ? 'Global Rules' : isNewClient ? 'Client/Client' : 'Campaign'}
+                         selectedType === 'edit' ? 'Edit' : 'Create New'} {isViewingBlueprint ? '' : isGlobalRules ? 'Global Rules' : isNewClient ? 'Client' : 'Campaign'}
                       </CardTitle>
                       <CardDescription>
                         {isViewingBlueprint
@@ -1280,8 +1280,8 @@ export default function PromptsPage() {
                           : isGlobalRules 
                           ? 'Editing: prompts/global/rules_v1.md'
                           : selectedType === 'edit' 
-                          ? `Editing: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_brand' : campaignName}_v${currentVersion}.md`
-                          : `Creating: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_brand' : campaignName}_v1.md`}
+                          ? `Editing: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_client' : campaignName}_v${currentVersion}.md`
+                          : `Creating: clients/${isNewClient ? clientName : selectedClient}/${isNewClient ? '_client' : campaignName}_v1.md`}
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1785,7 +1785,7 @@ export default function PromptsPage() {
                         )}
                         {isNewClient && clientName && (
                           <Button 
-                            onClick={handleDeleteBrand}
+                            onClick={handleDeleteClient}
                             variant="destructive"
                             size="icon"
                           >

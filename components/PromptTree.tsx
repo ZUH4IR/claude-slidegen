@@ -11,28 +11,28 @@ import { useToast } from '@/hooks/use-toast'
 
 interface TreeNode {
   name: string
-  type: 'section' | 'brand' | 'campaign' | 'file' | 'template'
+  type: 'section' | 'client' | 'campaign' | 'file' | 'template'
   children?: TreeNode[]
   hasPrompt?: boolean
 }
 
 interface PromptTreeProps {
   data: TreeNode[]
-  onSelect: (type: string, brand?: string, campaign?: string) => void
+  onSelect: (type: string, client?: string, campaign?: string) => void
   onRefresh: () => void
 }
 
 export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['Universal', 'Templates', 'Clients']))
   const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [createType, setCreateType] = useState<'brand' | 'campaign'>('brand')
+  const [createType, setCreateType] = useState<'client' | 'campaign'>('client')
   const [createName, setCreateName] = useState('')
-  const [selectedBrand, setSelectedBrand] = useState('')
+  const [selectedClient, setSelectedClient] = useState('')
   const [showRenameDialog, setShowRenameDialog] = useState(false)
-  const [renameTarget, setRenameTarget] = useState<{type: string, brand?: string, campaign?: string, currentName: string}>()
+  const [renameTarget, setRenameTarget] = useState<{type: string, client?: string, campaign?: string, currentName: string}>()
   const [newName, setNewName] = useState('')
   const [showVersionDialog, setShowVersionDialog] = useState(false)
-  const [versionTarget, setVersionTarget] = useState<{type: string, brand?: string, campaign?: string}>()
+  const [versionTarget, setVersionTarget] = useState<{type: string, client?: string, campaign?: string}>()
   const [versions, setVersions] = useState<string[]>([])
   const [selectedVersion, setSelectedVersion] = useState('')
   const { toast } = useToast()
@@ -55,7 +55,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
         body: JSON.stringify({
           type: createType,
           name: createName,
-          brand: createType === 'campaign' ? selectedBrand : undefined
+          client: createType === 'campaign' ? selectedClient : undefined
         })
       })
       
@@ -78,7 +78,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
           type: renameTarget.type,
           oldName: renameTarget.currentName,
           newName: newName,
-          brand: renameTarget.brand,
+          client: renameTarget.client,
           campaign: renameTarget.campaign
         })
       })
@@ -109,12 +109,12 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
     }
   }
 
-  const handleDelete = async (type: string, name: string, brand?: string) => {
+  const handleDelete = async (type: string, name: string, client?: string) => {
     if (!confirm(`Are you sure you want to delete ${name}?`)) return
     
     try {
       const body: any = { type, name }
-      if (brand) body.brand = brand
+      if (client) body.client = client
       if (type === 'template') body.path = `blueprints/${name}.md`
       
       const response = await fetch('/api/prompts/delete', {
@@ -156,7 +156,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: versionTarget.type,
-          brand: versionTarget.brand,
+          client: versionTarget.client,
           campaign: versionTarget.campaign,
           version: selectedVersion
         })
@@ -188,11 +188,11 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
     }
   }
 
-  const openVersionDialog = async (type: string, brand?: string, campaign?: string) => {
+  const openVersionDialog = async (type: string, client?: string, campaign?: string) => {
     try {
       const response = await fetch('/api/prompts/versions?' + new URLSearchParams({
         type,
-        ...(brand && { brand }),
+        ...(client && { client }),
         ...(campaign && { campaign })
       }))
       
@@ -200,7 +200,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
         const data = await response.json()
         setVersions(data.versions)
         setSelectedVersion(data.current)
-        setVersionTarget({ type, brand, campaign })
+        setVersionTarget({ type, client, campaign })
         setShowVersionDialog(true)
       }
     } catch (err) {
@@ -216,7 +216,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
         return <FileText className="h-4 w-4 text-green-500" />
       case 'template':
         return <FileCode2 className="h-4 w-4 text-purple-500" />
-      case 'brand':
+      case 'client':
         return <FolderOpen className="h-4 w-4 text-blue-500" />
       case 'campaign':
         return <FolderOpen className="h-4 w-4 text-yellow-500" />
@@ -284,7 +284,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-48 z-50">
                 <DropdownMenuItem onClick={() => openVersionDialog('global', node.name.replace('.md', '').replace('_v1', ''))}>
                   <GitBranch className="h-4 w-4 mr-2" />
                   Change Version
@@ -315,7 +315,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-48 z-50">
                 <DropdownMenuItem onClick={() => {
                   setRenameTarget({ type: 'template', currentName: node.name })
                   setNewName(node.name)
@@ -339,7 +339,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
       )
     }
 
-    if (node.type === 'brand') {
+    if (node.type === 'client') {
       const clientsPath = path.split('/')[0] === 'Clients' ? path.split('/').slice(1).join('/') : ''
       return (
         <div key={fullPath}>
@@ -348,7 +348,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
           >
             <div 
               className="flex items-center gap-2 flex-1"
-              onClick={() => hasChildren ? toggleExpand(fullPath) : onSelect('brand', node.name)}
+              onClick={() => hasChildren ? toggleExpand(fullPath) : onSelect('client', node.name)}
             >
               {hasChildren && (isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />)}
               {!hasChildren && <div className="w-4" />}
@@ -361,9 +361,9 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-48 z-50">
                 <DropdownMenuItem onClick={() => {
-                  setRenameTarget({ type: 'brand', currentName: node.name })
+                  setRenameTarget({ type: 'client', currentName: node.name })
                   setNewName(node.name)
                   setShowRenameDialog(true)
                 }}>
@@ -371,14 +371,14 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
                   Rename
                 </DropdownMenuItem>
                 {node.hasPrompt && (
-                  <DropdownMenuItem onClick={() => openVersionDialog('brand', node.name)}>
+                  <DropdownMenuItem onClick={() => openVersionDialog('client', node.name)}>
                     <GitBranch className="h-4 w-4 mr-2" />
                     Change Version
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
-                  onClick={() => handleDelete('brand', node.name)}
+                  onClick={() => handleDelete('client', node.name)}
                   className="text-red-600"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
@@ -398,7 +398,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
 
     if (node.type === 'campaign') {
       const pathParts = path.split('/')
-      const brand = pathParts[pathParts.length - 1]
+      const client = pathParts[pathParts.length - 1]
       return (
         <div key={fullPath}>
           <div
@@ -406,7 +406,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
           >
             <div 
               className="flex items-center gap-2 flex-1"
-              onClick={() => onSelect('campaign', brand, node.name)}
+              onClick={() => onSelect('campaign', client, node.name)}
             >
               {getIcon(node.type)}
               <span>{node.name}</span>
@@ -417,9 +417,9 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-48 z-50">
                 <DropdownMenuItem onClick={() => {
-                  setRenameTarget({ type: 'campaign', brand, campaign: node.name, currentName: node.name })
+                  setRenameTarget({ type: 'campaign', client, campaign: node.name, currentName: node.name })
                   setNewName(node.name)
                   setShowRenameDialog(true)
                 }}>
@@ -427,14 +427,14 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
                   Rename
                 </DropdownMenuItem>
                 {node.hasPrompt && (
-                  <DropdownMenuItem onClick={() => openVersionDialog('campaign', brand, node.name)}>
+                  <DropdownMenuItem onClick={() => openVersionDialog('campaign', client, node.name)}>
                     <GitBranch className="h-4 w-4 mr-2" />
                     Change Version
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
-                  onClick={() => handleDelete('campaign', node.name, brand)}
+                  onClick={() => handleDelete('campaign', node.name, client)}
                   className="text-red-600"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
@@ -450,9 +450,9 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
     return null
   }
 
-  // Get brands from the Clients section
+  // Get clients from the Clients section
   const clientsSection = data.find(d => d.name === 'Clients')
-  const brands = clientsSection?.children || []
+  const clients = clientsSection?.children || []
 
   return (
     <div className="space-y-2">
@@ -486,12 +486,12 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium">Type</label>
-              <Select value={createType} onValueChange={(v: 'brand' | 'campaign') => setCreateType(v)}>
+              <Select value={createType} onValueChange={(v: 'client' | 'campaign') => setCreateType(v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="brand">Client/Brand</SelectItem>
+                  <SelectItem value="client">Client</SelectItem>
                   <SelectItem value="campaign">Campaign</SelectItem>
                 </SelectContent>
               </Select>
@@ -499,15 +499,15 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
 
             {createType === 'campaign' && (
               <div>
-                <label className="text-sm font-medium">Client/Brand</label>
-                <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+                <label className="text-sm font-medium">Client</label>
+                <Select value={selectedClient} onValueChange={setSelectedClient}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select client" />
                   </SelectTrigger>
                   <SelectContent>
-                    {brands.map(brand => (
-                      <SelectItem key={brand.name} value={brand.name}>
-                        {brand.name}
+                    {clients.map(client => (
+                      <SelectItem key={client.name} value={client.name}>
+                        {client.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -520,7 +520,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
               <Input
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
-                placeholder={createType === 'brand' ? 'Client name' : 'Campaign name'}
+                placeholder={createType === 'client' ? 'Client name' : 'Campaign name'}
               />
             </div>
           </div>
@@ -528,7 +528,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
             <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={!createName || (createType === 'campaign' && !selectedBrand)}>
+            <Button onClick={handleCreate} disabled={!createName || (createType === 'campaign' && !selectedClient)}>
               Create
             </Button>
           </DialogFooter>
