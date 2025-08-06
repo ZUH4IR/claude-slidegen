@@ -113,14 +113,14 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
     if (!confirm(`Are you sure you want to delete ${name}?`)) return
     
     try {
+      const body: any = { type, name }
+      if (brand) body.brand = brand
+      if (type === 'template') body.path = `blueprints/${name}.md`
+      
       const response = await fetch('/api/prompts/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type,
-          name,
-          brand
-        })
+        body: JSON.stringify(body)
       })
       
       if (response.ok) {
@@ -242,6 +242,7 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
     const fullPath = path ? `${path}/${node.name}` : node.name
     const isExpanded = expanded.has(fullPath)
     const hasChildren = node.children && node.children.length > 0
+    console.log('Rendering node:', node.name, 'type:', node.type)
 
     if (node.type === 'section') {
       return (
@@ -269,10 +270,27 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
         <div key={fullPath}>
           <div
             className="flex items-center gap-2 py-1 px-2 hover:bg-accent rounded cursor-pointer ml-6"
-            onClick={() => onSelect('global')}
           >
-            {getIcon(node.type)}
-            <span>{node.name}</span>
+            <div 
+              className="flex items-center gap-2 flex-1"
+              onClick={() => onSelect('global', node.name.replace('.md', '').replace('_v1', ''))}
+            >
+              {getIcon(node.type)}
+              <span>{node.name}</span>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-60 hover:opacity-100">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => openVersionDialog('global', node.name.replace('.md', '').replace('_v1', ''))}>
+                  <GitBranch className="h-4 w-4 mr-2" />
+                  Change Version
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       )
@@ -283,10 +301,39 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
         <div key={fullPath}>
           <div
             className="flex items-center gap-2 py-1 px-2 hover:bg-accent rounded cursor-pointer ml-6"
-            onClick={() => onSelect('template', node.name)}
           >
-            {getIcon(node.type)}
-            <span>{node.name}</span>
+            <div 
+              className="flex items-center gap-2 flex-1"
+              onClick={() => onSelect('template', node.name)}
+            >
+              {getIcon(node.type)}
+              <span>{node.name}</span>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-60 hover:opacity-100">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setRenameTarget({ type: 'template', currentName: node.name })
+                  setNewName(node.name)
+                  setShowRenameDialog(true)
+                }}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => handleDelete('template', node.name)}
+                  className="text-red-600"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       )
@@ -298,14 +345,19 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
         <div key={fullPath}>
           <div
             className="flex items-center gap-2 py-1 px-2 hover:bg-accent rounded cursor-pointer ml-6"
-            onClick={() => toggleExpand(fullPath)}
           >
-            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            {getIcon(node.type)}
-            <span className="flex-1">{node.name}</span>
+            <div 
+              className="flex items-center gap-2 flex-1"
+              onClick={() => hasChildren ? toggleExpand(fullPath) : onSelect('brand', node.name)}
+            >
+              {hasChildren && (isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />)}
+              {!hasChildren && <div className="w-4" />}
+              {getIcon(node.type)}
+              <span>{node.name}</span>
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-60 hover:opacity-100">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -335,30 +387,8 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          {isExpanded && (
+          {isExpanded && hasChildren && (
             <div className="ml-4">
-              {node.hasPrompt && (
-                <div
-                  className="flex items-center gap-2 py-1 px-2 hover:bg-accent rounded cursor-pointer"
-                  onClick={() => onSelect('brand', node.name)}
-                >
-                  <FileText className="h-4 w-4 text-green-500 ml-6" />
-                  <span className="flex-1">Brand Prompt</span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openVersionDialog('brand', node.name)}>
-                        <GitBranch className="h-4 w-4 mr-2" />
-                        Change Version
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              )}
               {node.children?.map(child => renderNode(child, fullPath, level + 1))}
             </div>
           )}
@@ -373,13 +403,17 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
         <div key={fullPath}>
           <div
             className="flex items-center gap-2 py-1 px-2 hover:bg-accent rounded cursor-pointer ml-10"
-            onClick={() => node.hasPrompt && onSelect('campaign', brand, node.name)}
           >
-            {getIcon(node.type)}
-            <span className="flex-1">{node.name}</span>
+            <div 
+              className="flex items-center gap-2 flex-1"
+              onClick={() => onSelect('campaign', brand, node.name)}
+            >
+              {getIcon(node.type)}
+              <span>{node.name}</span>
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-60 hover:opacity-100">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

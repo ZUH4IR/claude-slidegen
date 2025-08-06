@@ -13,7 +13,7 @@ This blueprint creates maximum emotional impact through family trust violations.
 - Establish trust: "My {{relationship}} always {{positive_trait}}"
 - Time marker: "For {{time_period}}"
 - Subtle doubt: "Until I noticed..."
-- Character limit: 180
+- Keep focused and engaging
 
 ## Slide 2: Red Flags
 - Build suspicion: "Small things didn't add up"

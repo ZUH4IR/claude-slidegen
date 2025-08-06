@@ -25,45 +25,7 @@ export interface LintIssue {
 
 // Built-in lint rules
 export const rules: LintRule[] = [
-  {
-    id: 'line-length',
-    name: 'Line Length',
-    description: 'Check for lines exceeding maximum length',
-    severity: 'warning',
-    check: (content: string, context?: LintContext) => {
-      const maxLength = context?.maxLineLength || 120
-      const issues: LintIssue[] = []
-      const lines = content.split('\n')
-      
-      lines.forEach((line, index) => {
-        // Skip lines that are URLs, YAML frontmatter, or start with certain prefixes
-        const skipPatterns = [
-          /^https?:\/\//,  // URLs
-          /^\s*-?\s*(sound_url|share_url|play_url|url_list):/,  // YAML URL fields
-          /^\s*>-?\s*/,  // YAML multiline strings
-          /^---$/,  // YAML frontmatter delimiters
-          /^\s*saved_tracks:/,  // saved_tracks field
-          /^\s*sourceVideos:/  // sourceVideos field
-        ]
-        
-        const shouldSkip = skipPatterns.some(pattern => pattern.test(line))
-        
-        if (line.length > maxLength && !line.startsWith('#') && !shouldSkip) {
-          issues.push({
-            ruleId: 'line-length',
-            severity: 'warning',
-            message: `Line ${index + 1} exceeds ${maxLength} characters (${line.length} chars)`,
-            line: index + 1,
-            column: maxLength + 1,
-            suggestion: 'Consider breaking this line into multiple lines'
-          })
-        }
-      })
-      
-      return issues
-    }
-  },
-  
+  // Line length rule removed - no character limits
   {
     id: 'banned-words',
     name: 'Banned Words',

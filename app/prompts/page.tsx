@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { Plus, Save, FolderOpen, FileText, ChevronRight, Edit, RefreshCw, GitBranch, History, Code, Eye, Copy, Link, ChevronDown, ChevronUp, Music } from 'lucide-react'
+import { Plus, Save, FolderOpen, FileText, ChevronRight, Edit, RefreshCw, GitBranch, History, Code, Eye, Copy, Link, ChevronDown, ChevronUp, Music, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import matter from 'gray-matter'
@@ -551,18 +551,26 @@ export default function PromptsPage() {
       const res = await fetch(`/api/prompts/load?type=blueprint&blueprint=${blueprintName}`)
       const data = await res.json()
       
-      // Blueprints are read-only
+      // Make blueprints editable
       resetForm()
       setIsViewingBlueprint(true)
       setSelectedPath(`blueprints/${blueprintName}`)
-      setRawPrompt(data.content)
+      setSelectedType('edit') // Allow editing
       
-      // Show in raw view mode
+      // Handle frontmatter if exists
+      if (data.frontmatter && Object.keys(data.frontmatter).length > 0) {
+        setRawPrompt(matter.stringify(data.content, data.frontmatter))
+        setFrontmatter(data.frontmatter)
+      } else {
+        setRawPrompt(data.content)
+      }
+      
+      // Show in raw view mode for editing
       setViewMode('raw')
       
       toast({
         title: 'Blueprint Loaded',
-        description: `Viewing blueprint: ${blueprintName}`,
+        description: `Editing blueprint: ${blueprintName}`,
       })
     } catch (err) {
       console.error('Failed to load blueprint:', err)
@@ -848,6 +856,26 @@ export default function PromptsPage() {
         return
       }
 
+      if (isViewingBlueprint) {
+        // Save blueprint
+        const blueprintName = selectedPath.replace('blueprints/', '')
+        await fetch('/api/prompts/save-structured', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: selectedPath,
+            frontmatter: frontmatter || {},
+            content: rawPrompt
+          })
+        })
+
+        toast({
+          title: 'Saved',
+          description: `Blueprint ${blueprintName} saved successfully`
+        })
+        return
+      }
+
       let fm: any = {}
       let content = rawPrompt
       
@@ -997,6 +1025,107 @@ export default function PromptsPage() {
     setDynamicFields(dynamicFields.filter(f => f.key !== key))
   }
 
+  const handleDeleteBlueprint = async () => {
+    if (!confirm(`Are you sure you want to delete this blueprint?`)) return
+    
+    try {
+      const blueprintName = selectedPath.replace('blueprints/', '')
+      const response = await fetch('/api/prompts/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'blueprint',
+          path: selectedPath
+        })
+      })
+      
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: `Blueprint ${blueprintName} deleted successfully`
+        })
+        resetForm()
+        loadClients() // Refresh the tree
+      } else {
+        throw new Error('Failed to delete blueprint')
+      }
+    } catch (error) {
+      console.error('Error deleting blueprint:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to delete blueprint',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const handleDeleteCampaign = async () => {
+    if (!confirm(`Are you sure you want to delete the campaign "${campaignName}"?`)) return
+    
+    try {
+      const response = await fetch('/api/prompts/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'campaign',
+          name: campaignName,
+          brand: selectedClient
+        })
+      })
+      
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: `Campaign ${campaignName} deleted successfully`
+        })
+        resetForm()
+        loadClients() // Refresh the tree
+      } else {
+        throw new Error('Failed to delete campaign')
+      }
+    } catch (error) {
+      console.error('Error deleting campaign:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to delete campaign',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const handleDeleteBrand = async () => {
+    if (!confirm(`Are you sure you want to delete the brand "${clientName}"? This will delete all campaigns under this brand.`)) return
+    
+    try {
+      const response = await fetch('/api/prompts/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'brand',
+          name: clientName
+        })
+      })
+      
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: `Brand ${clientName} deleted successfully`
+        })
+        resetForm()
+        loadClients() // Refresh the tree
+      } else {
+        throw new Error('Failed to delete brand')
+      }
+    } catch (error) {
+      console.error('Error deleting brand:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to delete brand',
+        variant: 'destructive'
+      })
+    }
+  }
+
   const resetForm = () => {
     setIsNewClient(false)
     setIsNewCampaign(false)
@@ -1142,12 +1271,12 @@ export default function PromptsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle>
-                        {isViewingBlueprint ? 'Viewing Blueprint' : 
+                        {isViewingBlueprint ? 'Edit Blueprint' : 
                          selectedType === 'edit' ? 'Edit' : 'Create New'} {isViewingBlueprint ? '' : isGlobalRules ? 'Global Rules' : isNewClient ? 'Client/Client' : 'Campaign'}
                       </CardTitle>
                       <CardDescription>
                         {isViewingBlueprint
-                          ? `Viewing: ${selectedPath}`
+                          ? `Editing: ${selectedPath}`
                           : isGlobalRules 
                           ? 'Editing: prompts/global/rules_v1.md'
                           : selectedType === 'edit' 
@@ -1247,9 +1376,7 @@ export default function PromptsPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {isViewingBlueprint && viewMode === 'raw' ? (
-                    <BlueprintViewer content={rawPrompt} />
-                  ) : viewMode === 'form' && !isViewingBlueprint ? (
+                  {viewMode === 'form' && !isViewingBlueprint ? (
                     <div className="space-y-4">
                       {isGlobalRules ? (
                         <>
@@ -1633,18 +1760,50 @@ export default function PromptsPage() {
                     </div>
                   ) : null}
 
-                  {!isViewingBlueprint && (
+                  <div className="flex gap-2 mt-4">
                     <Button 
                       onClick={handleSave} 
-                      className="w-full mt-4"
+                      className="flex-1"
                       disabled={
-                        isGlobalRules ? false : isNewClient ? (!clientName || !clientVoice) : (!selectedClient || !campaignName)
+                        isViewingBlueprint ? false : isGlobalRules ? false : isNewClient ? (!clientName || !clientVoice) : (!selectedClient || !campaignName)
                       }
                     >
-                      <Save className="h-4 w-4 mr-2" />
-                      {isGlobalRules ? 'Save Global Rules' : selectedType === 'edit' ? 'Save New Version' : 'Create'} {!isGlobalRules && (isNewClient ? 'Client' : 'Campaign')}
-                    </Button>
-                  )}
+                        <Save className="h-4 w-4 mr-2" />
+                        {isViewingBlueprint ? 'Save Blueprint' : isGlobalRules ? 'Save Global Rules' : selectedType === 'edit' ? 'Save New Version' : 'Create'} {!isGlobalRules && !isViewingBlueprint && (isNewClient ? 'Client' : 'Campaign')}
+                      </Button>
+                    {/* Delete buttons for existing items */}
+                    {selectedType === 'edit' && !isGlobalRules && (
+                      <>
+                        {isViewingBlueprint && (
+                          <Button 
+                            onClick={handleDeleteBlueprint}
+                            variant="destructive"
+                            size="icon"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {isNewClient && clientName && (
+                          <Button 
+                            onClick={handleDeleteBrand}
+                            variant="destructive"
+                            size="icon"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {isNewCampaign && campaignName && (
+                          <Button 
+                            onClick={handleDeleteCampaign}
+                            variant="destructive"
+                            size="icon"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 

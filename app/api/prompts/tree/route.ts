@@ -71,7 +71,8 @@ export async function GET() {
         if (stat.isDirectory()) {
           result.clients[clientName] = {
             _version: 1,
-            campaigns: []
+            campaigns: [],
+            hasClient: false
           }
           
           const clientFiles = await fs.readdir(clientPath)
@@ -79,6 +80,7 @@ export async function GET() {
           // Find client file version
           const clientFile = clientFiles.find(f => f.startsWith('_brand_v') && f.endsWith('.md'))
           if (clientFile) {
+            result.clients[clientName].hasClient = true
             const match = clientFile.match(/_v(\d+)\.md$/)
             if (match) {
               result.clients[clientName]._version = parseInt(match[1])

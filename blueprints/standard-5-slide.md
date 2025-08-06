@@ -3,7 +3,7 @@
 ## Slide 1: Hook
 - Grab attention immediately
 - Create curiosity or controversy
-- Keep under character limit
+- Keep concise and impactful
 
 ## Slide 2: Build Tension
 - Expand on the hook

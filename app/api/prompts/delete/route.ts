@@ -4,12 +4,17 @@ import path from 'path'
 
 export async function POST(request: NextRequest) {
   try {
-    const { type, name, brand } = await request.json()
+    const { type, name, brand, path: filePath } = await request.json()
     const promptsDir = path.join(process.cwd(), 'prompts')
 
     let targetPath = ''
     
-    if (type === 'brand') {
+    if ((type === 'blueprint' || type === 'template') && filePath) {
+      // Delete blueprint/template file
+      targetPath = path.join(process.cwd(), filePath)
+      await fs.unlink(targetPath)
+      return NextResponse.json({ success: true })
+    } else if (type === 'brand') {
       targetPath = path.join(promptsDir, 'clients', name)
     } else if (type === 'campaign' && brand) {
       const brandDir = path.join(promptsDir, 'clients', brand)
