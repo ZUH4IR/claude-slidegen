@@ -280,8 +280,8 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-60 hover:opacity-100">
-                  <MoreVertical className="h-4 w-4" />
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-50 hover:opacity-100">
+                  <MoreVertical className="h-4 w-4 text-gray-500" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 z-50">
@@ -311,8 +311,8 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-60 hover:opacity-100">
-                  <MoreVertical className="h-4 w-4" />
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-50 hover:opacity-100">
+                  <MoreVertical className="h-4 w-4 text-gray-500" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 z-50">
@@ -357,8 +357,8 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-60 hover:opacity-100">
-                  <MoreVertical className="h-4 w-4" />
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-50 hover:opacity-100">
+                  <MoreVertical className="h-4 w-4 text-gray-500" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 z-50">
@@ -413,8 +413,8 @@ export function PromptTree({ data, onSelect, onRefresh }: PromptTreeProps) {
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-60 hover:opacity-100">
-                  <MoreVertical className="h-4 w-4" />
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-50 hover:opacity-100">
+                  <MoreVertical className="h-4 w-4 text-gray-500" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 z-50">
